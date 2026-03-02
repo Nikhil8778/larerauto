@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/* =========================
+   LARE Background (Screenshot-1 style)
+   ========================= */
+
+html, body { height: 100%; }
+body { background: none !important; }
+
+.la-page-bg {
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Background photo layer (crisp, not overly blurred) */
+.la-page-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+
+  background:
+    /* soft top dark band like screenshot header area */
+    linear-gradient(to bottom, rgba(8, 12, 20, 0.45) 0px, rgba(8, 12, 20, 0.00) 220px),
+    /* light “frost” veil */
+    linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.45)),
+    url("/brand/bg-car.jpg");
+
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: 70% 35%;
+
+  /* IMPORTANT: Screenshot-1 is NOT heavily blurred */
+  filter: saturate(1.08) contrast(1.08);
+  transform: scale(1.02);
+}
+
+/* Vignette depth */
+.la-page-bg::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(0,0,0,0.00) 0%, rgba(0,0,0,0.18) 100%);
+}
+
+/* Watermark grid */
+.la-static-watermark {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  display: grid;
+  place-items: center;
+
+  /* make brands visible like screenshot-1 */
+  opacity: 0.12;
+  mix-blend-mode: multiply;
+}
+
+.la-static-watermark-inner {
+  width: min(1200px, 92vw);
+  display: grid;
+  gap: 40px;
+  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.la-static-watermark-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  white-space: nowrap;
+  font-size: clamp(18px, 2.2vw, 34px);
+  color: rgba(15, 23, 42, 0.38);
+}
+
+main {
+  position: relative;
+  z-index: 10;
+}
