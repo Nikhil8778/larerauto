@@ -8,8 +8,8 @@ export const metadata = {
 };
 
 const stats = [
-  { label: "Parts sourced", value: "10,000+" },
-  { label: "Happy customers", value: "1,000+" },
+  { label: "Parts sourced", value: "500+" },
+  { label: "Happy customers", value: "100+" },
   { label: "Fast fulfillment", value: "Same/Next day" },
   { label: "Support", value: "Real humans" },
 ];
@@ -49,7 +49,7 @@ export default function AboutPage() {
               Keeping drivers moving, mechanics working, and vehicles performing at their best
             </h1>
 
-            <p className="mt-4 text-base leading-relaxed text-black/80 md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-black/95 md:text-lg">
               At <span className="font-semibold text-black">Lare Auto</span>, we
               make it easy to find quality parts with reliable availability and
               clear pricing—so you spend less time searching and more time getting back on the road.
