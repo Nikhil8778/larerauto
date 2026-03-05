@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  partType    String
+  title       String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offers      Offer[]
+}
+
+model Offer {
+  id           String   @id @default(cuid())
+  productId    String
+  sourceId     String   // internal only: "distA", "distB"
+  sourceSku    String?
+  cost         Int      // store cents (e.g. 12000)
+  qtyAvailable Int
+  leadTimeDays Int?
+  currency     String   @default("CAD")
+  updatedAt    DateTime @default(now())
+
+// ✅ ADD THESE (fitment/search fields)
+  partType     String   // store the same value you use in Quote (e.g. "Alternators")
+  year         Int
+  make         String
+  model        String
+
+   product      Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([sourceId])
+  // ✅ ADD THIS index for fast searching:
+  @@index([partType, year, make, model])
+
+}
+
+model Quote {
+  id          String   @id @default(cuid())
+  partType    String
+  year        String
+  make        String
+  model       String
+  vin         String?
+  bestOfferId String?
+  itemPrice   Int      // cents you show customer (no HST/delivery)
+  createdAt   DateTime @default(now())
+}

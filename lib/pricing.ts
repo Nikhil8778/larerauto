@@ -7,31 +7,62 @@ export type QuoteInput = {
 };
 
 // Demo base prices (before Logel’s integration).
-// You can adjust these anytime.
 export function getDemoBasePrice(partType: string): number {
   const key = partType.trim().toLowerCase();
 
   const map: Record<string, number> = {
-    "alternator": 135,
-    "starter": 145,
-    "battery": 170,
-    "brake pads": 65,
-    "rotors": 85,
-    "wheel bearing": 120,
-    "control arm": 110,
-    "oil filter": 12,
-    "air filter": 18,
-    "cabin filter": 22,
-    "o2 sensor": 75,
-    "maf sensor": 95,
-    "abs sensor": 80,
+    alternators: 205,
+    starters: 189,
+    batteries: 160,
+    "brake pads": 79,
+    rotors: 120,
+    calipers: 130,
+    bearings: 35,
+    "brake drum": 95,
+    "wheel bearings": 110,
+    "control arms": 140,
+    "lights & bulbs": 55,
+    fuses: 18,
+    "sway bar links": 65,
+    struts: 160,
+    shocks: 145,
+    "ac compressor": 260,
+    "ac condenser & evaporator": 220,
+    "tensioners & pulleys": 95,
+    "blower motor": 120,
+    radiators: 210,
+    "fuel injectors": 150,
+    "fuel pumps": 180,
+    "fuel tanks": 240,
+    "timing belts": 85,
+    gaskets: 45,
+    "spark plugs": 30,
   };
 
-  return map[key] ?? 100; // default base price if not listed
+  return map[key] ?? 100;
+}
+
+//
+// ✅ ADD THIS NEW FUNCTION RIGHT HERE
+//
+export function calculateSellPriceFromCost(costCents: number) {
+  const cost = costCents;
+
+  const fixedFeeCents = 4000; // $40
+  const subtotalCents = cost * 2 + fixedFeeCents;
+  const hstCents = Math.round(subtotalCents * 0.13);
+  const totalCents = subtotalCents + hstCents;
+
+  return {
+    costCents: cost,
+    itemPriceCents: subtotalCents,
+    hstCents,
+    totalCents,
+  };
 }
 
 export function calculateFinalPrice(basePrice: number) {
-  const subtotal = basePrice * 2 + 40; // +100% and +$40
+  const subtotal = basePrice * 2 + 40;
   const hst = subtotal * 0.13;
   const total = subtotal + hst;
 
@@ -44,5 +75,8 @@ export function calculateFinalPrice(basePrice: number) {
 }
 
 export function formatMoney(n: number) {
-  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD",
+  }).format(n);
 }
