@@ -39,7 +39,7 @@ const img: Record<string, string> = {
   "Fuel Tanks": "/products/Fuel-Tanks.jpg",
   "Timing Belts": "/products/Timing-Belts.jpg",
   Gaskets: "/products/Gaskets.jpg",
-  "Spark Plugs": "/products/Spark-Plugs.webp",
+  "Spark Plugs": "/products/Spark-plugs.webp",
 };
 
 function partHref(part: string) {
