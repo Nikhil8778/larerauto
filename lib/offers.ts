@@ -48,6 +48,6 @@ export async function findBestOffer(input: FindBestOfferInput) {
     imageUrl: best.product?.imageUrl ?? "",
     stockQty: best.qtyAvailable,
     // show item price BEFORE tax/delivery
-    itemPrice: pricing.subtotal,
+    itemPrice: pricing.itemPriceCents,
   };
 }
