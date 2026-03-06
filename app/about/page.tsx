@@ -35,88 +35,93 @@ const values = [
 
 export default function AboutPage() {
   return (
-    // NOTE: We do NOT set any background here, so your existing site background stays.
     <main className="w-full">
       {/* HERO */}
-      <section className="mx-auto max-w-6xl px-4 pt-10 pb-8 md:pt-14">
-        <div className="grid items-center gap-8 md:grid-cols-2">
-          <div>
-            <p className="inline-flex rounded-full border border-white/15 bg-white/5 px-3 py-1 text-sm text-black/80">
+      <section className="mx-auto max-w-6xl px-4 pb-8 pt-6 sm:pt-8 md:pt-10 lg:pt-14">
+          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_542px]">          
+            <div className="order-2 lg:order-1">
+            <p className="inline-flex rounded-full border border-white/15 bg-white/30 px-3 py-1 text-xs text-black/80 sm:text-sm">
               LareAuto.ca • Auto Parts • Canada
             </p>
 
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-black md:text-5xl">
-              Keeping drivers moving, mechanics working, and vehicles performing at their best
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-black md:text-5xl">            
+              Keeping drivers moving, mechanics working, and vehicles performing
+              at their best
             </h1>
 
-            <p className="mt-4 text-base leading-relaxed text-black/95 md:text-lg">
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-black/90 sm:text-lg">
               At <span className="font-semibold text-black">Lare Auto</span>, we
               make it easy to find quality parts with reliable availability and
-              clear pricing—so you spend less time searching and more time getting back on the road.
+              clear pricing—so you spend less time searching and more time
+              getting back on the road.
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
               <Link
                 href="/catalog"
-                className="rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md sm:w-auto"
               >
                 Shop Parts
               </Link>
               <Link
                 href="/quote"
-                className="rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md sm:w-auto"
               >
-               Request a Quote
+                Request a Quote
               </Link>
               <Link
                 href="/contact"
-                className="rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md sm:w-auto"
               >
                 Contact Us
               </Link>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {stats.map((s) => (
                 <div
                   key={s.label}
-                  className="rounded-2xl border border-white/15 bg-white/5 p-4"
+                  className="rounded-2xl border border-white/15 bg-white/5 p-2 backdrop-blur-sm"
                 >
-                  <div className="text-xl font-semibold text-black">{s.value}</div>
-                  <div className="mt-1 text-xs text-black/70">{s.label}</div>
+                  <div className="text-xl font-semibold text-black">
+                    {s.value}
+                  </div>
+                  <div className="mt-1 text-sm text-black/70">{s.label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="relative">
-            <div className="overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-sm">
+          <div className="order-1 flex justify-center lg:order-2 lg:justify-end">
+            <div className="w-full max-w-[542px] overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-sm">
               <Image
                 src="/about/hero.jpeg"
                 alt="Auto parts and tools"
-                width={1200}
-                height={800}
-                className="h-[280px] w-full object-cover md:h-[460px]"
+                width={542}
+                height={460}
                 priority
+                className="h-[280px] w-full object-cover md:h-[460px]"
               />
             </div>
-           
           </div>
         </div>
       </section>
 
       {/* OUR STORY */}
-      <section className="mx-auto max-w-6xl px-4 py-10">
-        <div className="grid gap-8 md:grid-cols-2">
-          <div className="rounded-3xl border border-white/15 bg-white/5 p-6 md:p-8">
-            <h2 className="text-2xl font-semibold text-black">Our story</h2>
-            <p className="mt-3 text-black/80 leading-relaxed">
+      <section className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+        <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+          <div className="rounded-3xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm sm:p-6 md:p-8">
+            <h2 className="text-2xl font-semibold text-black sm:text-3xl">
+              Our story
+            </h2>
+            <p className="mt-3 leading-relaxed text-black/80">
               Lare Auto started with one goal: make auto parts buying simpler.
               Too many customers waste time calling around for stock, price, and
               fitment. We built LareAuto.ca to reduce that friction—so you can
-              quickly find what you need, compare options, and order with confidence.
+              quickly find what you need, compare options, and order with
+              confidence.
             </p>
-            <p className="mt-3 text-black/80 leading-relaxed">
+            <p className="mt-3 leading-relaxed text-black/80">
               Whether you’re a DIY customer, a professional mechanic, or a fleet
               buyer, our focus stays the same: dependable parts, fast sourcing,
               and helpful support.
@@ -129,36 +134,38 @@ export default function AboutPage() {
               alt="Warehouse inventory"
               width={1200}
               height={800}
-              className="h-full w-full object-cover"
+              className="h-[250px] w-full object-cover sm:h-[320px] lg:h-full"
             />
           </div>
         </div>
       </section>
 
       {/* VALUES */}
-      <section className="mx-auto max-w-6xl px-4 pb-10">
-        <div className="rounded-3xl border border-white/15 bg-white/5 p-6 md:p-8">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <section className="mx-auto max-w-6xl px-4 pb-8 sm:pb-10">
+        <div className="rounded-3xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm sm:p-6 md:p-8">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-black">What we stand for</h2>
+              <h2 className="text-2xl font-semibold text-black sm:text-3xl">
+                What we stand for
+              </h2>
               <p className="mt-2 text-black/75">
                 The principles we use to serve every customer, every order.
               </p>
             </div>
+
             <Link
               href="/catalog"
-             className="mt-3 inline-flex w-fit rounded-xl bg-white/40 px-4 py-2 text-sm font-semibold text-black transition hover:bg-white hover:shadow md:mt-0"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-white/40 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow sm:w-fit md:mt-0"
             >
-             Browse Categories
+              Browse Categories
             </Link>
-            
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {values.map((v) => (
               <div
                 key={v.title}
-                className="rounded-2xl border border-white/15 bg-black/20 p-5"
+                className="rounded-2xl border border-white/15 bg-white/10 p-5"
               >
                 <div className="text-lg font-semibold text-black">{v.title}</div>
                 <div className="mt-2 text-sm leading-relaxed text-black/75">
@@ -171,21 +178,21 @@ export default function AboutPage() {
       </section>
 
       {/* TWO-COLUMN: TEAM + DELIVERY */}
-      <section className="mx-auto max-w-6xl px-4 pb-14">
-        <div className="grid gap-6 md:grid-cols-2">
+      <section className="mx-auto max-w-6xl px-4 pb-12 sm:pb-14">
+        <div className="grid gap-6 lg:grid-cols-2">
           <div className="overflow-hidden rounded-3xl border border-white/15 bg-white/5">
             <Image
               src="/about/Team.png"
               alt="Customer support team"
               width={1200}
               height={800}
-              className="h-[260px] w-full object-cover md:h-[360px]"
+              className="h-[240px] w-full object-cover sm:h-[300px] md:h-[360px]"
             />
-            <div className="p-6">
+            <div className="p-5 sm:p-6">
               <h3 className="text-xl font-semibold text-black">Real support</h3>
-              <p className="mt-2 text-black/75 leading-relaxed">
-                Questions about fitment, options, or availability? Our team helps
-                you choose the right part with confidence.
+              <p className="mt-2 leading-relaxed text-black/75">
+                Questions about fitment, options, or availability? Our team
+                helps you choose the right part with confidence.
               </p>
             </div>
           </div>
@@ -196,11 +203,13 @@ export default function AboutPage() {
               alt="Auto parts delivery"
               width={1200}
               height={800}
-              className="h-[260px] w-full object-cover md:h-[360px]"
+              className="h-[240px] w-full object-cover sm:h-[300px] md:h-[360px]"
             />
-            <div className="p-6">
-              <h3 className="text-xl font-semibold text-black">Fast fulfillment</h3>
-              <p className="mt-2 text-black/75 leading-relaxed">
+            <div className="p-5 sm:p-6">
+              <h3 className="text-xl font-semibold text-black">
+                Fast fulfillment
+              </h3>
+              <p className="mt-2 leading-relaxed text-black/75">
                 We prioritize speed and reliability—so your job doesn’t sit
                 waiting for parts longer than it should.
               </p>
@@ -209,26 +218,27 @@ export default function AboutPage() {
         </div>
 
         {/* CTA */}
-        <div className="mt-8 rounded-3xl border border-white/15 bg-white/5 p-6 md:p-8">
-          <div className="grid gap-4 md:grid-cols-3 md:items-center">
-            <div className="md:col-span-2">
-              <h3 className="text-2xl font-semibold text-black">
+        <div className="mt-8 rounded-3xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm sm:p-6 md:p-8">
+          <div className="grid gap-4 lg:grid-cols-3 lg:items-center">
+            <div className="lg:col-span-2">
+              <h3 className="text-2xl font-semibold text-black sm:text-3xl">
                 Ready to find your part?
               </h3>
               <p className="mt-2 text-black/75">
                 Browse parts, request a quote, or contact us for quick help.
               </p>
             </div>
-            <div className="flex gap-3 md:justify-end">
+
+            <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap lg:justify-end">
               <Link
                 href="/catalog"
-                className="rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md sm:w-auto"
               >
                 Go to Parts
               </Link>
               <Link
                 href="/quote"
-                className="rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-white/40 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white hover:shadow-md sm:w-auto"
               >
                 Request a Quote
               </Link>
