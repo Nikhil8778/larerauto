@@ -1,69 +1,69 @@
 @import "tailwindcss";
 
-/* =========================
-   LARE Background (Screenshot-1 style)
-   ========================= */
+html,
+body {
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
 
-html, body { height: 100%; }
-body { background: none !important; }
+body {
+  background: none !important;
+}
 
 .la-page-bg {
   min-height: 100vh;
   position: relative;
   isolation: isolate;
+  overflow-x: hidden;
 }
 
-/* Background photo layer (crisp, not overly blurred) */
+/* Main background layer */
 .la-page-bg::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -3;
+  pointer-events: none;
 
   background:
-    /* soft top dark band like screenshot header area */
-    linear-gradient(to bottom, rgba(8, 12, 20, 0.45) 0px, rgba(8, 12, 20, 0.00) 220px),
-    /* light “frost” veil */
-    linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.45)),
+    linear-gradient(to bottom, rgba(8, 12, 20, 0.42) 0px, rgba(8, 12, 20, 0) 180px),
+    linear-gradient(rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.34)),
     url("/brand/bg-car.jpg");
-
   background-size: cover;
   background-repeat: no-repeat;
   background-position: 70% 35%;
-
-  /* IMPORTANT: Screenshot-1 is NOT heavily blurred */
-  filter: saturate(1.08) contrast(1.08);
-  transform: scale(1.02);
+  filter: saturate(1.04) contrast(1.03);
 }
 
-/* Vignette depth */
+/* Vignette */
 .la-page-bg::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 30%, rgba(0,0,0,0.00) 0%, rgba(0,0,0,0.18) 100%);
+  background: radial-gradient(
+    circle at 50% 35%,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
 }
 
-/* Watermark grid */
+/* Brand watermark */
 .la-static-watermark {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-
   display: grid;
   place-items: center;
-
-  /* make brands visible like screenshot-1 */
-  opacity: 0.12;
+  opacity: 0.09;
   mix-blend-mode: multiply;
 }
 
 .la-static-watermark-inner {
-  width: min(1200px, 92vw);
+  width: min(1280px, 92vw);
   display: grid;
   gap: 40px;
   text-transform: uppercase;
@@ -76,11 +76,33 @@ body { background: none !important; }
   justify-content: space-between;
   align-items: center;
   white-space: nowrap;
-  font-size: clamp(18px, 2.2vw, 34px);
-  color: rgba(15, 23, 42, 0.38);
+  font-size: clamp(18px, 2.1vw, 34px);
+  color: rgba(15, 23, 42, 0.28);
 }
 
 main {
   position: relative;
   z-index: 10;
+}
+
+/* Mobile / tablet tuning */
+@media (max-width: 1023px) {
+  .la-page-bg::before {
+    background-position: center top;
+    background-size: cover;
+  }
+
+  .la-static-watermark {
+    opacity: 0.06;
+  }
+
+  .la-static-watermark-inner {
+    width: min(1000px, 94vw);
+    gap: 28px;
+  }
+
+  .la-static-watermark-row {
+    font-size: clamp(14px, 4vw, 24px);
+    letter-spacing: 0.12em;
+  }
 }

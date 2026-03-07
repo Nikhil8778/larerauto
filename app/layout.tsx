@@ -1,31 +1,43 @@
-import type { Metadata, Viewport } from "next";
-import SiteHeader from "../components/SiteHeader";
-import BrandWatermarkStatic from "../components/BrandWatermarkStatic";
+import type { Metadata } from "next";
 import "./globals.css";
+import SiteHeader from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Lare Auto",
-  description: "Auto parts website",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
+  description: "Premium auto parts website",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en">
-      <body className="min-w-0 overflow-x-hidden">
-        <div className="la-page-bg min-h-screen overflow-x-hidden">
-          <BrandWatermarkStatic />
-          <SiteHeader />
-          <main className="relative z-10 min-w-0">{children}</main>
+      <body className="la-page-bg">
+        <div className="la-static-watermark">
+          <div className="la-static-watermark-inner">
+            <div className="la-static-watermark-row">
+              <span>Honda</span>
+              <span>Toyota</span>
+              <span>Audi</span>
+              <span>Ram</span>
+            </div>
+            <div className="la-static-watermark-row">
+              <span>Hyundai</span>
+              <span>Mercedes</span>
+              <span>Nissan</span>
+            </div>
+            <div className="la-static-watermark-row">
+              <span>Ford</span>
+              <span>BMW</span>
+              <span>Mazda</span>
+            </div>
+          </div>
         </div>
+
+        <SiteHeader />
+        {children}
       </body>
     </html>
   );
