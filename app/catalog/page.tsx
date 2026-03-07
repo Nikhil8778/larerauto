@@ -50,10 +50,10 @@ function PartTile({ part }: { part: string }) {
   const src = img[part]?.trim() || "/products/placeholder.png";
 
   return (
-    <Link href={partHref(part)} className="block" title={`Get quote for ${part}`}>
-      <div className="group rounded-2xl bg-white/85 backdrop-blur border border-white/60 shadow-sm px-3 py-3 text-center transition hover:bg-white">
+    <Link href={partHref(part)} className="block h-full" title={`Get quote for ${part}`}>
+      <div className="group h-full rounded-2xl border border-white/60 bg-white/85 px-2 py-3 text-center shadow-sm backdrop-blur transition hover:bg-white sm:px-3">
         <div className="flex min-h-[150px] flex-col items-center">
-          <div className="mb-2 flex h-16 w-24 items-center justify-center rounded-xl bg-white/70">
+          <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-xl bg-white/70 sm:h-[72px] sm:w-[72px]">
             <Image
               src={src}
               alt={part}
@@ -63,11 +63,11 @@ function PartTile({ part }: { part: string }) {
             />
           </div>
 
-          <div className="px-1 text-sm font-semibold text-slate-900 leading-snug break-words">
+          <div className="px-1 text-sm font-semibold leading-tight text-slate-900 break-words">
             {part}
           </div>
 
-          <div className="mt-auto pt-2 text-xs text-slate-500 leading-tight">
+          <div className="mt-auto pt-2 text-xs leading-tight text-slate-500">
             Tap for quote
           </div>
         </div>
@@ -78,10 +78,12 @@ function PartTile({ part }: { part: string }) {
 
 function CategoryCard({ name, subs }: { name: string; subs: string[] }) {
   return (
-    <section className="rounded-3xl bg-white/22 backdrop-blur-xl border border-white/45 shadow-xl p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-extrabold text-slate-900">{name}</h2>
+    <section className="rounded-3xl border border-white/45 bg-white/22 p-4 shadow-xl backdrop-blur-xl sm:p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
+            {name}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
             Choose a category and tap a part to jump to Instant Quote.
           </p>
@@ -89,14 +91,13 @@ function CategoryCard({ name, subs }: { name: string; subs: string[] }) {
 
         <Link
           href={partHref(subs[0])}
-          className="inline-flex h-9 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow hover:bg-slate-800"
+          className="inline-flex h-10 shrink-0 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow hover:bg-slate-800"
         >
           Quote
         </Link>
       </div>
 
-      {/* ONE grid only (no duplicates) */}
-      <div className="mt-5 grid grid-cols-4 gap-3">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {subs.slice(0, 5).map((p) => (
           <PartTile key={`${name}-${p}`} part={p} />
         ))}
@@ -110,10 +111,10 @@ export default function CatalogPage() {
   const rest = categories.slice(2);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 pb-16 pt-14">
-      {/* main frosted panel like screenshot-1 */}
-      <div className="rounded-[36px] bg-white/14 backdrop-blur-xl border border-white/35 shadow-2xl px-10 py-10">
-        <h1 className="text-5xl font-extrabold tracking-tight text-slate-900">
+    <div className="mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-10">
+      {/* Main frosted panel */}
+      <div className="rounded-[30px] border border-white/35 bg-white/14 px-5 py-6 shadow-2xl backdrop-blur-xl sm:rounded-[36px] sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
           Products &amp; Services
         </h1>
 
@@ -121,30 +122,30 @@ export default function CatalogPage() {
           Choose a category and tap a part to jump to Instant Quote.
         </p>
 
-        <div className="mt-6 flex gap-4">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/quote"
-            className="inline-flex h-11 items-center rounded-full bg-slate-900 px-7 text-sm font-semibold text-white shadow hover:bg-slate-800"
+            className="inline-flex h-11 items-center rounded-full bg-slate-900 px-6 text-sm font-semibold text-white shadow hover:bg-slate-800"
           >
             Instant Quote
           </Link>
 
           <Link
             href="/about"
-            className="inline-flex h-11 items-center rounded-full bg-white/75 px-7 text-sm font-semibold text-slate-900 shadow hover:bg-white"
+            className="inline-flex h-11 items-center rounded-full bg-white/75 px-6 text-sm font-semibold text-slate-900 shadow hover:bg-white"
           >
             About Us
           </Link>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-2">
+        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
           {top.map((c) => (
             <CategoryCard key={c.name} name={c.name} subs={c.subs} />
           ))}
         </div>
       </div>
 
-      <div className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-2">
+      <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
         {rest.map((c) => (
           <CategoryCard key={c.name} name={c.name} subs={c.subs} />
         ))}
