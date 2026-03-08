@@ -5,7 +5,14 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/pricing";
 
 type Props = {
-  query: { partType: string; year: string; make: string; model: string; vin?: string };
+  query: {
+    partType: string;
+    year: string;
+    make: string;
+    model: string;
+    engine: string;
+    vin?: string;
+  };
   offer: null | {
     offerId: string;
     partType: string;
@@ -20,32 +27,39 @@ type Props = {
 export default function ResultClient({ query, offer }: Props) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="rounded-[28px] border border-white/40 bg-white/25 backdrop-blur-xl shadow-2xl p-6">
+      <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
         <h1 className="text-3xl font-black text-slate-900">Quote Result</h1>
         <p className="mt-2 text-sm font-medium text-slate-700">
-          {query.partType} • {query.year} • {query.make} • {query.model}
+          {query.partType} • {query.year} • {query.make} • {query.model} • {query.engine}
         </p>
       </div>
 
       {!offer ? (
-        <div className="mt-8 rounded-[28px] border border-white/40 bg-white/25 backdrop-blur-xl shadow-2xl p-6">
+        <div className="mt-8 rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
           <div className="text-lg font-extrabold text-slate-900">No offers found</div>
           <p className="mt-2 text-sm text-slate-700">
-            Try changing make/model/year or go back to catalog.
+            Try changing make/model/engine/year or go back to catalog.
           </p>
-          <Link className="mt-4 inline-block rounded-full bg-slate-900 px-6 py-3 text-sm font-extrabold text-white" href="/catalog">
+          <Link
+            className="mt-4 inline-block rounded-full bg-slate-900 px-6 py-3 text-sm font-extrabold text-white"
+            href="/catalog"
+          >
             Back to Catalog
           </Link>
         </div>
       ) : (
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          {/* Left: product */}
-          <div className="rounded-[28px] border border-white/40 bg-white/25 backdrop-blur-xl shadow-2xl p-6">
+          <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
             <div className="flex items-start gap-4">
-              <div className="h-24 w-24 overflow-hidden rounded-2xl bg-white/70 border border-white/60 flex items-center justify-center">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/60 bg-white/70">
                 {offer.imageUrl ? (
-                  // If you use external URLs, add domain in next.config.js images.domains
-                  <Image src={offer.imageUrl} alt={offer.title} width={96} height={96} />
+                  <Image
+                    src={offer.imageUrl}
+                    alt={offer.title}
+                    width={96}
+                    height={96}
+                    className="h-auto w-auto object-contain"
+                  />
                 ) : (
                   <div className="text-xs font-bold text-slate-500">No image</div>
                 )}
@@ -73,8 +87,7 @@ export default function ResultClient({ query, offer }: Props) {
             </div>
           </div>
 
-          {/* Right: actions */}
-          <div className="rounded-[28px] border border-white/40 bg-white/25 backdrop-blur-xl shadow-2xl p-6">
+          <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
             <div className="text-lg font-black text-slate-900">Next</div>
             <p className="mt-2 text-sm font-medium text-slate-700">
               Add to cart or buy now. You’ll enter your address on the next step to calculate delivery + HST.
@@ -95,7 +108,10 @@ export default function ResultClient({ query, offer }: Props) {
                 Buy Now
               </Link>
 
-              <Link className="block text-center text-sm font-bold text-slate-700 hover:text-slate-900" href="/catalog">
+              <Link
+                className="block text-center text-sm font-bold text-slate-700 hover:text-slate-900"
+                href="/catalog"
+              >
                 ← Back to Catalog
               </Link>
             </div>

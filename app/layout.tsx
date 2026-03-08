@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Lare Auto",
@@ -38,6 +39,7 @@ export default function RootLayout({
 
         <SiteHeader />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

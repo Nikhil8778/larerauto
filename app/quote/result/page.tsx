@@ -16,13 +16,14 @@ export default async function QuoteResultPage({
   const year = String(sp.year ?? "");
   const make = String(sp.make ?? "");
   const model = String(sp.model ?? "");
+  const engine = String(sp.engine ?? "");
   const vin = String(sp.vin ?? "");
 
-  const query = { partType, year, make, model, vin };
+  const query = { partType, year, make, model, engine, vin };
 
   let offer: any = null;
 
-  if (partType && year && make && model) {
+  if (partType && year && make && model && engine) {
     const h = await headers();
     const host = h.get("host") || "localhost:3000";
     const proto = h.get("x-forwarded-proto") ?? "http";
@@ -32,6 +33,7 @@ export default async function QuoteResultPage({
     url.searchParams.set("year", year);
     url.searchParams.set("make", make);
     url.searchParams.set("model", model);
+    url.searchParams.set("engine", engine);
     url.searchParams.set("vin", vin);
 
     const res = await fetch(url, { cache: "no-store" });
