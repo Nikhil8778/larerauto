@@ -1,53 +1,83 @@
 import { prisma } from "@/lib/prisma";
-import { calculateSellPriceFromCost } from "@/lib/pricing";
 
 type FindBestOfferInput = {
   partType: string;
   year: string;
   make: string;
   model: string;
+  engine?: string;
 };
 
 export async function findBestOffer(input: FindBestOfferInput) {
   const partType = input.partType.trim();
   const make = input.make.trim();
   const model = input.model.trim();
+  const engine = input.engine?.trim() ?? "";
   const yearInt = Number(input.year);
 
   if (!partType || !make || !model) return null;
-  if (!Number.isFinite(yearInt) || yearInt < 1900 || yearInt > new Date().getFullYear() + 1) return null;
+  if (!Number.isFinite(yearInt)) return null;
 
   const offers = await prisma.offer.findMany({
     where: {
-      partType,
-      year: yearInt,
-      // Case-insensitive match (Postgres supports this)
-      make: { equals: make, mode: "insensitive" },
-      model: { equals: model, mode: "insensitive" },
+      inventoryQty: { gt: 0 },
+      part: {
+        partType: {
+          equals: partType,
+          mode: "insensitive",
+        },
+      },
+      vehicle: {
+        year: yearInt,
+        make: {
+          name: {
+            equals: make,
+            mode: "insensitive",
+          },
+        },
+        model: {
+          name: {
+            equals: model,
+            mode: "insensitive",
+          },
+        },
+        ...(engine
+          ? {
+              engine: {
+                name: {
+                  equals: engine,
+                  mode: "insensitive",
+                },
+              },
+            }
+          : {}),
+      },
     },
-    include: { product: true },
-    orderBy: [
-      { qtyAvailable: "desc" }, // prefer in-stock
-      { cost: "asc" },          // then cheapest
-    ],
+    include: {
+      part: true,
+      vehicle: {
+        include: {
+          make: true,
+          model: true,
+          engine: true,
+        },
+      },
+    },
+    orderBy: [{ sellPriceCents: "asc" }],
     take: 10,
   });
 
   if (!offers.length) return null;
 
-  const best = offers.find((o) => o.qtyAvailable > 0) ?? offers[0];
-
-  // cost is stored in cents in DB
-  const pricing = calculateSellPriceFromCost(best.cost);
+  const best = offers[0];
 
   return {
     offerId: best.id,
-    partType: best.partType,
-    title: best.product?.title ?? best.partType,
-    description: best.product?.description ?? "",
-    imageUrl: best.product?.imageUrl ?? "",
-    stockQty: best.qtyAvailable,
-    // show item price BEFORE tax/delivery
-    itemPrice: pricing.itemPriceCents,
+    partType: best.part.partType,
+    title: best.part.title ?? best.part.partType,
+    description: best.part.description ?? "",
+    imageUrl: best.part.imageUrl ?? "",
+    stockQty: best.inventoryQty,
+    itemPrice: best.sellPriceCents / 100,
   };
 }
