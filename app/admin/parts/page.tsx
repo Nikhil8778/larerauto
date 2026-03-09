@@ -11,6 +11,12 @@ type AdminPartRow = {
   title: string;
   inventoryQty: number;
   sellPriceCents: number;
+  amazonPriceCents: number | null;
+  aPremiumPriceCents: number | null;
+  amazonUrl: string;
+  aPremiumUrl: string;
+  syncStatus: string;
+  lastPriceSyncAt: string;
   currency: string;
   sourceId: string;
 };

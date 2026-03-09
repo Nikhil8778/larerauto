@@ -31,6 +31,14 @@ export async function GET() {
       title: offer.part.title,
       inventoryQty: offer.inventoryQty,
       sellPriceCents: offer.sellPriceCents,
+      amazonPriceCents: offer.amazonPriceCents ?? null,
+      aPremiumPriceCents: offer.aPremiumPriceCents ?? null,
+      amazonUrl: offer.amazonUrl ?? "",
+      aPremiumUrl: offer.aPremiumUrl ?? "",
+      syncStatus: offer.syncStatus ?? "",
+      lastPriceSyncAt: offer.lastPriceSyncAt
+        ? offer.lastPriceSyncAt.toISOString()
+        : "",
       currency: offer.currency,
       sourceId: offer.sourceId,
     }));

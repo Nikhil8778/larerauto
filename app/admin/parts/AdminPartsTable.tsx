@@ -12,15 +12,29 @@ type AdminPartRow = {
   title: string;
   inventoryQty: number;
   sellPriceCents: number;
+  amazonPriceCents: number | null;
+  aPremiumPriceCents: number | null;
+  amazonUrl: string;
+  aPremiumUrl: string;
+  syncStatus: string;
+  lastPriceSyncAt: string;
   currency: string;
   sourceId: string;
 };
 
-function formatMoneyFromCents(cents: number, currency = "CAD") {
+function formatMoneyFromCents(cents: number | null, currency = "CAD") {
+  if (cents === null || Number.isNaN(cents)) return "-";
   return new Intl.NumberFormat("en-CA", {
     style: "currency",
     currency,
   }).format(cents / 100);
+}
+
+function formatDateTime(value: string) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("en-CA");
 }
 
 export default function AdminPartsTable({
@@ -32,12 +46,29 @@ export default function AdminPartsTable({
 
   async function saveRow(offerId: string) {
     const invInput = document.getElementById(`inv-${offerId}`) as HTMLInputElement | null;
-    const priceInput = document.getElementById(`price-${offerId}`) as HTMLInputElement | null;
+    const sellInput = document.getElementById(`sell-${offerId}`) as HTMLInputElement | null;
+    const amazonPriceInput = document.getElementById(`amazon-price-${offerId}`) as HTMLInputElement | null;
+    const aPremiumPriceInput = document.getElementById(`apremium-price-${offerId}`) as HTMLInputElement | null;
+    const amazonUrlInput = document.getElementById(`amazon-url-${offerId}`) as HTMLInputElement | null;
+    const aPremiumUrlInput = document.getElementById(`apremium-url-${offerId}`) as HTMLInputElement | null;
 
-    if (!invInput || !priceInput) return;
+    if (!invInput || !sellInput || !amazonPriceInput || !aPremiumPriceInput || !amazonUrlInput || !aPremiumUrlInput) {
+      return;
+    }
 
     const inventoryQty = Number(invInput.value);
-    const sellPriceCents = Math.round(Number(priceInput.value) * 100);
+    const sellPriceCents = Math.round(Number(sellInput.value || "0") * 100);
+
+    const amazonPriceCents = amazonPriceInput.value.trim()
+      ? Math.round(Number(amazonPriceInput.value) * 100)
+      : null;
+
+    const aPremiumPriceCents = aPremiumPriceInput.value.trim()
+      ? Math.round(Number(aPremiumPriceInput.value) * 100)
+      : null;
+
+    const amazonUrl = amazonUrlInput.value.trim();
+    const aPremiumUrl = aPremiumUrlInput.value.trim();
 
     setLoadingId(offerId);
 
@@ -51,6 +82,10 @@ export default function AdminPartsTable({
           offerId,
           inventoryQty,
           sellPriceCents,
+          amazonPriceCents,
+          aPremiumPriceCents,
+          amazonUrl,
+          aPremiumUrl,
         }),
       });
 
@@ -71,7 +106,7 @@ export default function AdminPartsTable({
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse">
+        <table className="min-w-[1800px] border-collapse">
           <thead className="bg-slate-50">
             <tr className="text-left text-sm font-bold text-slate-700">
               <th className="px-4 py-4">Make</th>
@@ -81,7 +116,13 @@ export default function AdminPartsTable({
               <th className="px-4 py-4">Part Type</th>
               <th className="px-4 py-4">Title</th>
               <th className="px-4 py-4">Inventory</th>
+              <th className="px-4 py-4">Amazon URL</th>
+              <th className="px-4 py-4">A-Premium URL</th>
+              <th className="px-4 py-4">Amazon Price</th>
+              <th className="px-4 py-4">A-Premium Price</th>
               <th className="px-4 py-4">Sell Price</th>
+              <th className="px-4 py-4">Sync Status</th>
+              <th className="px-4 py-4">Last Sync</th>
               <th className="px-4 py-4">Source</th>
               <th className="px-4 py-4">Action</th>
             </tr>
@@ -91,7 +132,7 @@ export default function AdminPartsTable({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={16}
                   className="px-4 py-10 text-center text-sm font-medium text-slate-500"
                 >
                   No part rows found.
@@ -101,7 +142,7 @@ export default function AdminPartsTable({
               rows.map((row) => (
                 <tr
                   key={row.offerId}
-                  className="border-t border-slate-100 text-sm text-slate-800"
+                  className="border-t border-slate-100 align-top text-sm text-slate-800"
                 >
                   <td className="px-4 py-4">{row.make}</td>
                   <td className="px-4 py-4">{row.model}</td>
@@ -119,14 +160,74 @@ export default function AdminPartsTable({
                   </td>
 
                   <td className="px-4 py-4">
+                    <textarea
+                      id={`amazon-url-${row.offerId}`}
+                      defaultValue={row.amazonUrl}
+                      className="min-h-[72px] w-64 rounded-lg border border-slate-300 px-2 py-1"
+                      placeholder="Paste Amazon product URL"
+                    />
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <textarea
+                      id={`apremium-url-${row.offerId}`}
+                      defaultValue={row.aPremiumUrl}
+                      className="min-h-[72px] w-64 rounded-lg border border-slate-300 px-2 py-1"
+                      placeholder="Paste A-Premium product URL"
+                    />
+                  </td>
+
+                  <td className="px-4 py-4">
                     <input
-                      id={`price-${row.offerId}`}
+                      id={`amazon-price-${row.offerId}`}
+                      defaultValue={
+                        row.amazonPriceCents !== null
+                          ? (row.amazonPriceCents / 100).toFixed(2)
+                          : ""
+                      }
+                      className="w-24 rounded-lg border border-slate-300 px-2 py-1"
+                      placeholder="Amazon"
+                    />
+                    <div className="mt-1 text-xs text-slate-500">
+                      Current: {formatMoneyFromCents(row.amazonPriceCents, row.currency)}
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <input
+                      id={`apremium-price-${row.offerId}`}
+                      defaultValue={
+                        row.aPremiumPriceCents !== null
+                          ? (row.aPremiumPriceCents / 100).toFixed(2)
+                          : ""
+                      }
+                      className="w-24 rounded-lg border border-slate-300 px-2 py-1"
+                      placeholder="A-Premium"
+                    />
+                    <div className="mt-1 text-xs text-slate-500">
+                      Current: {formatMoneyFromCents(row.aPremiumPriceCents, row.currency)}
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <input
+                      id={`sell-${row.offerId}`}
                       defaultValue={(row.sellPriceCents / 100).toFixed(2)}
                       className="w-24 rounded-lg border border-slate-300 px-2 py-1"
                     />
                     <div className="mt-1 text-xs text-slate-500">
                       Current: {formatMoneyFromCents(row.sellPriceCents, row.currency)}
                     </div>
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                      {row.syncStatus || "-"}
+                    </span>
+                  </td>
+
+                  <td className="px-4 py-4 text-xs text-slate-600">
+                    {formatDateTime(row.lastPriceSyncAt)}
                   </td>
 
                   <td className="px-4 py-4">{row.sourceId}</td>

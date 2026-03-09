@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync:vendors": "tsx scripts/sync-vendor-prices.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
@@ -27,6 +28,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "prisma": {

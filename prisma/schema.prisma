@@ -73,27 +73,40 @@ model Part {
 }
 
 model Offer {
-  id                 String   @id @default(cuid())
-  vehicleId          String
-  partId             String
+  id                  String   @id @default(cuid())
+  vehicleId           String
+  partId              String
 
-  sourceId           String   // internal only: "manual", "distA", "distB"
-  sourceSku          String?
-  inventoryQty       Int
-  costPriceCents     Int
-  referencePriceCents Int?    // optional, for amazon/manual comparison
-  sellPriceCents     Int      // customer-facing item price
-  currency           String   @default("CAD")
-  leadTimeDays       Int?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  sourceId            String   // internal only: "manual", "distA", "distB"
+  sourceSku           String?
+  inventoryQty        Int
+  costPriceCents      Int
 
-  vehicle            Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  part               Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  referencePriceCents Int?     // final chosen vendor reference price
+  sellPriceCents      Int      // customer-facing item price
+
+  amazonPriceCents    Int?
+  aPremiumPriceCents  Int?
+
+  amazonUrl           String?
+  aPremiumUrl         String?
+
+  syncStatus          String?  // "success", "failed", "partial"
+  syncError           String?
+  lastPriceSyncAt     DateTime?
+
+  currency            String   @default("CAD")
+  leadTimeDays        Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  vehicle             Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  part                Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
 
   @@index([vehicleId])
   @@index([partId])
   @@index([sourceId])
+  @@index([syncStatus])
 }
 
 model Quote {
