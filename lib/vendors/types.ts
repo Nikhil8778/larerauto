@@ -13,3 +13,12 @@ export type VendorLookupInput = {
   engine: string;
   partType: string;
 };
+
+export type VendorUrlLookupInput = {
+  url: string | null | undefined;
+  make: string;
+  model: string;
+  year: number;
+  engine: string;
+  partType: string;
+};

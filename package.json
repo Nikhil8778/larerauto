@@ -7,10 +7,12 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "sync:vendors": "tsx scripts/sync-vendor-prices.ts"
+    "sync:vendors": "tsx scripts/sync-vendor-prices.ts",
+    "find:candidates": "tsx scripts/find-vendor-candidates.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
+    "cheerio": "^1.2.0",
     "next": "16.1.6",
     "prisma": "^6.19.2",
     "react": "19.2.3",

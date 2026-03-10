@@ -9,8 +9,6 @@ export async function POST(req: Request) {
       offerId,
       inventoryQty,
       sellPriceCents,
-      amazonPriceCents,
-      aPremiumPriceCents,
       amazonUrl,
       aPremiumUrl,
     } = body;
@@ -24,8 +22,6 @@ export async function POST(req: Request) {
       data: {
         inventoryQty,
         sellPriceCents,
-        amazonPriceCents,
-        aPremiumPriceCents,
         amazonUrl,
         aPremiumUrl,
       },
