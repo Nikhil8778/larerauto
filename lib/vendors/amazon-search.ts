@@ -31,8 +31,61 @@ function parsePriceToCentsFromText(text: string) {
   return Math.round(amount * 100);
 }
 
-function buildAmazonSearchUrl(input: CandidateSearchInput) {
-  const query = [
+function normalizeRef(value: string) {
+  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+function isLikelyReferenceNumber(value: string) {
+  const v = normalizeRef(value);
+
+  if (v.length < 5) return false;
+  if (!/\d/.test(v)) return false;
+
+  // reject plain year
+  if (/^(19|20)\d{2}$/.test(v)) return false;
+
+  // reject date-like values like 20170222
+  if (/^(19|20)\d{6}$/.test(v)) return false;
+
+  // reject concatenated year ranges like 20142019 / 20182020
+  if (/^(19|20)\d{2}(19|20)\d{2}$/.test(v)) return false;
+
+  // reject obvious CSS / HTML-ish junk
+  if (
+    [
+      "DATANIMG",
+      "BOXSIZING",
+      "MINWIDTH",
+      "MAXWIDTH",
+      "MINHEIGHT",
+      "MAXHEIGHT",
+      "CODEYEAR",
+      "FETCHPRIORITY",
+      "DECODING",
+      "LOADING",
+      "SRCSET",
+      "STYLE",
+      "WIDTH",
+      "HEIGHT",
+    ].includes(v)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractReferenceNumbers(text: string) {
+  const matches =
+    text.match(
+      /\b[A-Z0-9]{2,6}-[A-Z0-9]{2,6}-?[A-Z0-9]{0,6}\b|\b[A-Z]{1,5}\d{3,10}[A-Z]?\b|\b\d{5}-\d{5}\b|\b\d{5,10}[A-Z]?\b/gi
+    ) ?? [];
+
+  return [...new Set(matches.map(normalizeRef).filter(isLikelyReferenceNumber))];
+}
+
+function buildAmazonQueries(input: CandidateSearchInput) {
+  const baseQuery = [
     input.year,
     input.make,
     input.model,
@@ -42,6 +95,16 @@ function buildAmazonSearchUrl(input: CandidateSearchInput) {
     .filter(Boolean)
     .join(" ");
 
+  const refQueries = (input.referenceNumbers ?? [])
+    .map((ref) => normalizeRef(ref))
+    .filter(isLikelyReferenceNumber)
+    .slice(0, 3)
+    .map((ref) => `${ref} ${input.partType}`);
+
+  return [baseQuery, ...refQueries];
+}
+
+function buildAmazonSearchUrl(query: string) {
   return `https://www.amazon.ca/s?k=${encodeURIComponent(query)}`;
 }
 
@@ -121,122 +184,124 @@ async function fetchWithRetry(url: string, options: RequestInit) {
 export async function searchAmazonCandidates(
   input: CandidateSearchInput
 ): Promise<VendorSearchCandidate[]> {
-  const url = buildAmazonSearchUrl(input);
+  const queries = buildAmazonQueries(input);
+  const seenUrls = new Set<string>();
+  const lightweightCandidates: VendorSearchCandidate[] = [];
 
   try {
-    console.log("Amazon search URL:", url);
+    for (const query of queries) {
+      const url = buildAmazonSearchUrl(query);
+      console.log("Amazon search query:", query);
+      console.log("Amazon search URL:", url);
 
-    await randomDelay(2500, 4500);
+      await randomDelay(2500, 4500);
 
-    const res = await fetchWithRetry(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-CA,en;q=0.9",
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-        "Upgrade-Insecure-Requests": "1",
-      },
-      cache: "no-store",
-    });
+      const res = await fetchWithRetry(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-CA,en;q=0.9",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+          "Upgrade-Insecure-Requests": "1",
+        },
+        cache: "no-store",
+      });
 
-    if (!res.ok) {
-      console.log("Amazon non-OK status:", res.status);
-      return [];
-    }
-
-    const html = await res.text();
-    const $ = cheerio.load(html);
-
-    const lightweightCandidates: VendorSearchCandidate[] = [];
-    const seenUrls = new Set<string>();
-
-    const resultItems = $('div[data-component-type="s-search-result"]');
-
-    resultItems.each((_, el) => {
-      if (lightweightCandidates.length >= 10) return false;
-
-      const node = $(el);
-
-      const title =
-        cleanText(node.find("h2 span").first().text()) ||
-        cleanText(node.find("a h2 span").first().text());
-
-      const relativeUrl =
-        node.find("h2 a").attr("href") ||
-        node.find("a.a-link-normal.s-no-outline").attr("href") ||
-        node.find("a.a-link-normal").attr("href");
-
-      const productUrl = relativeUrl
-        ? new URL(relativeUrl, "https://www.amazon.ca").toString()
-        : "";
-
-      if (!title || !productUrl) return;
-      if (!seemsRelevantForAmazon(title, input.partType)) return;
-      if (seenUrls.has(productUrl)) return;
-
-      seenUrls.add(productUrl);
-
-      const whole = cleanText(node.find(".a-price .a-price-whole").first().text());
-      const fraction = cleanText(node.find(".a-price .a-price-fraction").first().text());
-
-      let searchPagePriceCents = parsePriceToCentsFromWholeFraction(whole, fraction);
-
-      if (searchPagePriceCents === null) {
-        const offscreenPrice = cleanText(
-          node.find(".a-price .a-offscreen").first().text()
-        );
-        if (offscreenPrice) {
-          searchPagePriceCents = parsePriceToCentsFromText(offscreenPrice);
-        }
+      if (!res.ok) {
+        console.log("Amazon non-OK status:", res.status, "for query:", query);
+        continue;
       }
 
-      const badgeText = cleanText(
-        node.find(".a-badge-text").first().text() ||
-          node.find('[aria-label*="Best Seller"]').first().text()
-      );
+      const html = await res.text();
+      const $ = cheerio.load(html);
 
-      const ratingText =
-        cleanText(node.find("span.a-icon-alt").first().text()) ||
-        cleanText(
-          node.find('[aria-label*="out of 5 stars"]').first().attr("aria-label")
+      const resultItems = $('div[data-component-type="s-search-result"]');
+
+      resultItems.each((_, el) => {
+        if (lightweightCandidates.length >= 16) return false;
+
+        const node = $(el);
+
+        const title =
+          cleanText(node.find("h2 span").first().text()) ||
+          cleanText(node.find("a h2 span").first().text());
+
+        const relativeUrl =
+          node.find("h2 a").attr("href") ||
+          node.find("a.a-link-normal.s-no-outline").attr("href") ||
+          node.find("a.a-link-normal").attr("href");
+
+        const productUrl = relativeUrl
+          ? new URL(relativeUrl, "https://www.amazon.ca").toString()
+          : "";
+
+        if (!title || !productUrl) return;
+        if (!seemsRelevantForAmazon(title, input.partType)) return;
+        if (seenUrls.has(productUrl)) return;
+
+        seenUrls.add(productUrl);
+
+        const whole = cleanText(node.find(".a-price .a-price-whole").first().text());
+        const fraction = cleanText(
+          node.find(".a-price .a-price-fraction").first().text()
         );
 
-      const reviewText =
-        cleanText(node.find("span.a-size-base.s-underline-text").first().text()) ||
-        cleanText(node.find("a[href*='customerReviews'] span").last().text());
+        let searchPagePriceCents = parsePriceToCentsFromWholeFraction(
+          whole,
+          fraction
+        );
 
-      const rawText = cleanText(node.text());
-      const inStock =
-        /in stock/i.test(rawText)
+        if (searchPagePriceCents === null) {
+          const offscreenPrice = cleanText(
+            node.find(".a-price .a-offscreen").first().text()
+          );
+          if (offscreenPrice) {
+            searchPagePriceCents = parsePriceToCentsFromText(offscreenPrice);
+          }
+        }
+
+        const badgeText = cleanText(
+          node.find(".a-badge-text").first().text() ||
+            node.find('[aria-label*="Best Seller"]').first().text()
+        );
+
+        const ratingText =
+          cleanText(node.find("span.a-icon-alt").first().text()) ||
+          cleanText(
+            node.find('[aria-label*="out of 5 stars"]').first().attr("aria-label")
+          );
+
+        const reviewText =
+          cleanText(node.find("span.a-size-base.s-underline-text").first().text()) ||
+          cleanText(node.find("a[href*='customerReviews'] span").last().text());
+
+        const rawText = cleanText(node.text());
+        const inStock = /in stock/i.test(rawText)
           ? true
           : /out of stock/i.test(rawText)
           ? false
           : null;
 
-      lightweightCandidates.push({
-        vendor: "amazon",
-        title,
-        productUrl,
-        priceCents: searchPagePriceCents,
-        badge: badgeText || null,
-        inStock,
-        rawText: `${rawText} | rating:${ratingText} | reviews:${reviewText}`.slice(
-          0,
-          3000
-        ),
-      });
-    });
+        const referenceNumbers = extractReferenceNumbers(`${title} ${rawText}`);
 
-    console.log(
-      "Amazon lightweight candidates:",
-      lightweightCandidates.map((c) => ({
-        title: c.title,
-        priceCents: c.priceCents,
-      }))
-    );
+        lightweightCandidates.push({
+          vendor: "amazon",
+          title,
+          productUrl,
+          priceCents: searchPagePriceCents,
+          badge: badgeText || null,
+          inStock,
+          rawText: `${rawText} | rating:${ratingText} | reviews:${reviewText}`.slice(
+            0,
+            3000
+          ),
+          referenceNumbers,
+        });
+      });
+    }
 
     const enrichedCandidates: VendorSearchCandidate[] = [];
 
@@ -249,13 +314,16 @@ export async function searchAmazonCandidates(
         .filter(Boolean)
         .join(" | ");
 
+      const mergedRefs = [
+        ...(candidate.referenceNumbers ?? []),
+        ...extractReferenceNumbers(mergedRawText),
+      ];
+
       enrichedCandidates.push({
         ...candidate,
-        // IMPORTANT:
-        // Keep the search-result card price first.
-        // Use product-page price only as fallback.
         priceCents: candidate.priceCents ?? pageData.priceCents ?? null,
         rawText: mergedRawText,
+        referenceNumbers: [...new Set(mergedRefs)],
       });
     }
 
@@ -264,6 +332,7 @@ export async function searchAmazonCandidates(
       enrichedCandidates.map((c) => ({
         title: c.title,
         priceCents: c.priceCents,
+        referenceNumbers: c.referenceNumbers,
       }))
     );
 

@@ -6,6 +6,7 @@ type FitmentCandidate = {
   badge?: string | null;
   inStock?: boolean | null;
   priceCents?: number | null;
+  referenceNumbers?: string[];
 };
 
 function normalize(value: string) {
@@ -103,6 +104,45 @@ function engineLooksCompatible(text: string, engine: string) {
   return litersInText.some((item) => item === targetLiter);
 }
 
+function normalizeRef(value: string) {
+  return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+function extractReferenceNumbersFromText(text: string) {
+  const raw = text ?? "";
+  const matches = raw.match(
+    /\b[A-Z0-9]{2,6}-[A-Z0-9]{2,6}-?[A-Z0-9]{0,6}\b|\b[A-Z]{1,4}\d{4,8}[A-Z]?\b|\b\d{5}-\d{5}\b|\b\d{5,10}[A-Z]?\b/gi
+  ) ?? [];
+
+  const cleaned = matches
+    .map((m) => normalizeRef(m))
+    .filter((m) => m.length >= 5);
+
+  return [...new Set(cleaned)];
+}
+
+function candidateReferenceNumbers(candidate: FitmentCandidate) {
+  const explicit = (candidate.referenceNumbers ?? []).map(normalizeRef);
+  const extracted = extractReferenceNumbersFromText(
+    `${candidate.title ?? ""} ${candidate.rawText ?? ""}`
+  );
+  return [...new Set([...explicit, ...extracted])];
+}
+
+function matchingReferenceCount(
+  input: CandidateSearchInput,
+  candidate: FitmentCandidate
+) {
+  const targetRefs = (input.referenceNumbers ?? []).map(normalizeRef);
+  if (targetRefs.length === 0) return 0;
+
+  const candidateRefs = candidateReferenceNumbers(candidate);
+  if (candidateRefs.length === 0) return 0;
+
+  const set = new Set(candidateRefs);
+  return targetRefs.filter((r) => set.has(r)).length;
+}
+
 export function candidatePassesHardFitment(
   input: CandidateSearchInput,
   candidate: FitmentCandidate
@@ -116,8 +156,6 @@ export function candidatePassesHardFitment(
   const partType = normalize(input.partType);
 
   const skipEngineHardReject =
-    partType.includes("alternator") ||
-    partType.includes("starter") ||
     partType.includes("rotor") ||
     partType.includes("brake pad") ||
     partType.includes("fuel tank");
@@ -287,6 +325,11 @@ export function scoreCandidate(
 
   if ((candidate.badge ?? "").toLowerCase().includes("best seller")) {
     score += 10;
+  }
+
+  const refMatches = matchingReferenceCount(input, candidate);
+  if (refMatches > 0) {
+    score += refMatches * 60;
   }
 
   return score;

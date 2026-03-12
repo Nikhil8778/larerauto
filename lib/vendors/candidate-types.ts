@@ -1,3 +1,12 @@
+export type CandidateSearchInput = {
+  make: string;
+  model: string;
+  year: number;
+  engine: string;
+  partType: string;
+  referenceNumbers?: string[];
+};
+
 export type VendorSearchCandidate = {
   vendor: "amazon" | "apremium";
   title: string;
@@ -6,12 +15,5 @@ export type VendorSearchCandidate = {
   badge?: string | null;
   inStock?: boolean | null;
   rawText?: string | null;
-};
-
-export type CandidateSearchInput = {
-  make: string;
-  model: string;
-  year: number;
-  engine: string;
-  partType: string;
+  referenceNumbers?: string[];
 };
