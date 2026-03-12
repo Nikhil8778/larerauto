@@ -2,26 +2,32 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  try {
-    const offers = await prisma.offer.findMany({
-      include: {
-        vehicle: {
-          include: {
-            make: true,
-            model: true,
-            engine: true,
-          },
+  const offers = await prisma.offer.findMany({
+    include: {
+      vehicle: {
+        include: {
+          make: true,
+          model: true,
+          engine: true,
         },
-        part: true,
       },
-      orderBy: [
-        { vehicle: { make: { name: "asc" } } },
-        { vehicle: { model: { name: "asc" } } },
-        { vehicle: { year: "desc" } },
-      ],
-    });
+      part: true,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
 
-    const rows = offers.map((offer) => ({
+  const rows = offers.map((offer) => {
+    let selectedPriceCents: number | null = null;
+
+    if (offer.sourceId === "amazon") {
+      selectedPriceCents = offer.amazonPriceCents;
+    } else if (offer.sourceId === "apremium") {
+      selectedPriceCents = offer.aPremiumPriceCents;
+    }
+
+    return {
       offerId: offer.id,
       make: offer.vehicle.make.name,
       model: offer.vehicle.model.name,
@@ -30,22 +36,24 @@ export async function GET() {
       partType: offer.part.partType,
       title: offer.part.title,
       inventoryQty: offer.inventoryQty,
+      sourceId: offer.sourceId,
+      currency: offer.currency,
+
+      amazonPriceCents: offer.amazonPriceCents,
+      aPremiumPriceCents: offer.aPremiumPriceCents,
+      selectedPriceCents,
       sellPriceCents: offer.sellPriceCents,
-      amazonPriceCents: offer.amazonPriceCents ?? null,
-      aPremiumPriceCents: offer.aPremiumPriceCents ?? null,
+
       amazonUrl: offer.amazonUrl ?? "",
       aPremiumUrl: offer.aPremiumUrl ?? "",
+
       syncStatus: offer.syncStatus ?? "",
+      syncError: offer.syncError ?? "",
       lastPriceSyncAt: offer.lastPriceSyncAt
         ? offer.lastPriceSyncAt.toISOString()
         : "",
-      currency: offer.currency,
-      sourceId: offer.sourceId,
-    }));
+    };
+  });
 
-    return NextResponse.json({ rows });
-  } catch (error) {
-    console.error("admin parts api error", error);
-    return NextResponse.json({ rows: [] }, { status: 500 });
-  }
+  return NextResponse.json({ rows });
 }

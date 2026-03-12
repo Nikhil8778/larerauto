@@ -26,6 +26,8 @@ export async function findAndStoreVendorCandidates() {
       partType: offer.part.partType,
     };
 
+    console.log("Searching candidates for:", input);
+
     const amazonCandidates = await searchAmazonCandidates(input);
     const aPremiumCandidates = await searchAPremiumCandidates(input);
 
@@ -40,11 +42,8 @@ export async function findAndStoreVendorCandidates() {
       where: { offerId: offer.id },
     });
 
-    let topCandidateId: string | null = null;
-    const topCandidate = allCandidates[0] ?? null;
-
     for (const candidate of allCandidates) {
-      const created = await prisma.vendorCandidate.create({
+      await prisma.vendorCandidate.create({
         data: {
           offerId: offer.id,
           vendor: candidate.vendor,
@@ -58,48 +57,21 @@ export async function findAndStoreVendorCandidates() {
           selected: false,
         },
       });
-
-      if (
-        topCandidate &&
-        candidate.vendor === topCandidate.vendor &&
-        candidate.title === topCandidate.title &&
-        candidate.productUrl === topCandidate.productUrl
-      ) {
-        topCandidateId = created.id;
-      }
     }
 
-    if (topCandidate && topCandidateId && topCandidate.score >= 90) {
-      await prisma.vendorCandidate.update({
-        where: { id: topCandidateId },
-        data: {
-          selected: true,
-        },
-      });
-
-      if (topCandidate.vendor === "amazon") {
-        await prisma.offer.update({
-          where: { id: offer.id },
-          data: {
-            amazonUrl: topCandidate.productUrl,
-            amazonPriceCents: topCandidate.priceCents ?? null,
-            referencePriceCents: topCandidate.priceCents ?? null,
-            syncStatus: "success",
-          },
-        });
-      }
-
-      if (topCandidate.vendor === "apremium") {
-        await prisma.offer.update({
-          where: { id: offer.id },
-          data: {
-            aPremiumUrl: topCandidate.productUrl,
-            aPremiumPriceCents: topCandidate.priceCents ?? null,
-            referencePriceCents: topCandidate.priceCents ?? null,
-            syncStatus: "success",
-          },
-        });
-      }
-    }
+    // Reset offer-side vendor fields here.
+    // Actual selection will be done ONLY by sync-offer-prices.ts
+    await prisma.offer.update({
+      where: { id: offer.id },
+      data: {
+        amazonUrl: null,
+        amazonPriceCents: null,
+        aPremiumUrl: null,
+        aPremiumPriceCents: null,
+        referencePriceCents: null,
+        syncStatus: "pending",
+        syncError: null,
+      },
+    });
   }
 }

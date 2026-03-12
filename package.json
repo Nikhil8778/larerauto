@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "sync:vendors": "tsx scripts/sync-vendor-prices.ts",
-    "find:candidates": "tsx scripts/find-vendor-candidates.ts"
+    "find:candidates": "tsx scripts/find-vendor-candidates.ts",
+    "sync:offers": "tsx scripts/sync-offer-prices.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
