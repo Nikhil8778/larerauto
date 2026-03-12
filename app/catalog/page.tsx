@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 const categories = [
-  { name: "Brakes", subs: ["Brake Pads", "Rotors", "Calipers", "Bearings", "Brake Drum"] },
+  { name: "Brakes", subs: ["Rotors & Brake Pads", "Calipers", "Bearings", "Brake Drum"] },
   { name: "Electrical", subs: ["Alternators", "Starters", "Batteries", "Lights & Bulbs", "Fuses"] },
   { name: "Suspension", subs: ["Control Arms", "Wheel Bearings", "Sway Bar Links", "Struts", "Shocks"] },
   {
@@ -14,8 +14,7 @@ const categories = [
 ];
 
 const img: Record<string, string> = {
-  "Brake Pads": "/products/Brake-Pads.webp",
-  Rotors: "/products/Rotors.webp",
+  "Rotors & BrakePads": "/products/Rotors.webp",
   Calipers: "/products/Calipers.jpg",
   Bearings: "/products/Bearings.jpg",
   "Brake Drum": "/products/Brake-Drum.jpg",
