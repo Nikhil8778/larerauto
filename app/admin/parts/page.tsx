@@ -12,13 +12,19 @@ type AdminPartRow = {
   partType: string;
   title: string;
   inventoryQty: number;
+
   sellPriceCents: number;
   amazonPriceCents: number | null;
   aPremiumPriceCents: number | null;
+  selectedPriceCents: number | null;
+
   amazonUrl: string;
   aPremiumUrl: string;
+
   syncStatus: string;
+  syncError: string;
   lastPriceSyncAt: string;
+
   currency: string;
   sourceId: string;
 };
@@ -51,7 +57,32 @@ export default async function AdminPartsPage({
 
   if (res.ok) {
     const data = await res.json();
-    rows = data.rows ?? [];
+    rows = (data.rows ?? []).map((row: any) => ({
+      offerId: row.offerId,
+      make: row.make,
+      model: row.model,
+      engine: row.engine,
+      year: row.year,
+      partType: row.partType,
+      title: row.title,
+      inventoryQty: row.inventoryQty ?? 0,
+
+      sellPriceCents: row.sellPriceCents ?? 0,
+      amazonPriceCents: row.amazonPriceCents ?? null,
+      aPremiumPriceCents: row.aPremiumPriceCents ?? null,
+      selectedPriceCents:
+        row.selectedPriceCents ?? row.referencePriceCents ?? null,
+
+      amazonUrl: row.amazonUrl ?? "",
+      aPremiumUrl: row.aPremiumUrl ?? "",
+
+      syncStatus: row.syncStatus ?? "",
+      syncError: row.syncError ?? "",
+      lastPriceSyncAt: row.lastPriceSyncAt ?? "",
+
+      currency: row.currency ?? "CAD",
+      sourceId: row.sourceId ?? "manual",
+    }));
   }
 
   const selectedMake = sp.make ?? "";
@@ -64,11 +95,16 @@ export default async function AdminPartsPage({
   const modelOptions = [...new Set(rows.map((r) => r.model))].sort();
   const partTypeOptions = [...new Set(rows.map((r) => r.partType))].sort();
 
-  let filteredRows = rows.filter((row) => {
+  const filteredRows = rows.filter((row) => {
     if (selectedMake && row.make !== selectedMake) return false;
     if (selectedModel && row.model !== selectedModel) return false;
     if (selectedPartType && row.partType !== selectedPartType) return false;
-    if (selectedStatus && row.syncStatus?.toLowerCase() !== selectedStatus.toLowerCase()) return false;
+    if (
+      selectedStatus &&
+      row.syncStatus?.toLowerCase() !== selectedStatus.toLowerCase()
+    ) {
+      return false;
+    }
 
     if (selectedInventory === "low" && row.inventoryQty > 2) return false;
     if (selectedInventory === "out" && row.inventoryQty !== 0) return false;

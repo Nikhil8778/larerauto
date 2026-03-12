@@ -117,7 +117,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                     href={row.amazonUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline text-blue-600"
+                    className="text-blue-600 underline"
                   >
                     {formatMoney(row.amazonPriceCents, row.currency)}
                   </a>
@@ -132,7 +132,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                     href={row.aPremiumUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline text-blue-600"
+                    className="text-blue-600 underline"
                   >
                     {formatMoney(row.aPremiumPriceCents, row.currency)}
                   </a>
@@ -160,7 +160,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                 ) : null}
               </td>
 
-              <td className="px-4 py-3 whitespace-nowrap">
+              <td className="whitespace-nowrap px-4 py-3">
                 {formatDate(row.lastPriceSyncAt)}
               </td>
             </tr>
