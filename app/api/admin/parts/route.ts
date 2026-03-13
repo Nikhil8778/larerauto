@@ -3,20 +3,24 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const offers = await prisma.offer.findMany({
-    include: {
-      vehicle: {
-        include: {
-          make: true,
-          model: true,
-          engine: true,
-        },
+  include: {
+    vehicle: {
+      include: {
+        make: true,
+        model: true,
+        engine: true,
       },
-      part: true,
     },
-    orderBy: {
-      updatedAt: "desc",
+    part: {
+      include: {
+        partType: true,
+      },
     },
-  });
+  },
+  orderBy: {
+    updatedAt: "desc",
+  },
+});
 
   const rows = offers.map((offer) => {
     let selectedPriceCents: number | null = null;
@@ -33,7 +37,7 @@ export async function GET() {
       model: offer.vehicle.model.name,
       engine: offer.vehicle.engine.name,
       year: offer.vehicle.year,
-      partType: offer.part.partType,
+      partType: offer.part.partType.name,
       title: offer.part.title,
       inventoryQty: offer.inventoryQty,
       sourceId: offer.sourceId,
