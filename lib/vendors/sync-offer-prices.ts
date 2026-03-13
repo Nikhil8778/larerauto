@@ -66,7 +66,11 @@ export async function syncOfferPrices() {
           engine: true,
         },
       },
-      part: true,
+      part: {
+        include: {
+          partType: true,
+        },
+      },
     },
   });
 
@@ -78,7 +82,7 @@ export async function syncOfferPrices() {
       make: offer.vehicle.make.name,
       model: offer.vehicle.model.name,
       engine: offer.vehicle.engine.name,
-      partType: offer.part.partType,
+      partType: offer.part.partType.name,
     };
 
     await prisma.vendorCandidate.updateMany({

@@ -23,8 +23,10 @@ export async function findBestOffer(input: FindBestOfferInput) {
       inventoryQty: { gt: 0 },
       part: {
         partType: {
-          equals: partType,
-          mode: "insensitive",
+          name: {
+            equals: partType,
+            mode: "insensitive",
+          },
         },
       },
       vehicle: {
@@ -54,7 +56,11 @@ export async function findBestOffer(input: FindBestOfferInput) {
       },
     },
     include: {
-      part: true,
+      part: {
+        include: {
+          partType: true,
+        },
+      },
       vehicle: {
         include: {
           make: true,
@@ -73,8 +79,8 @@ export async function findBestOffer(input: FindBestOfferInput) {
 
   return {
     offerId: best.id,
-    partType: best.part.partType,
-    title: best.part.title ?? best.part.partType,
+    partType: best.part.partType.name,
+    title: best.part.title ?? best.part.partType.name,
     description: best.part.description ?? "",
     imageUrl: best.part.imageUrl ?? "",
     stockQty: best.inventoryQty,

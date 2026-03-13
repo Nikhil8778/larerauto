@@ -41,8 +41,10 @@ export async function GET(req: Request) {
       inventoryQty: { gt: 0 },
       part: {
         partType: {
-          equals: partType,
-          mode: "insensitive",
+          name: {
+            equals: partType,
+            mode: "insensitive",
+          },
         },
       },
       vehicle: {
@@ -68,7 +70,11 @@ export async function GET(req: Request) {
       },
     },
     include: {
-      part: true,
+      part: {
+        include: {
+          partType: true,
+        },
+      },
       vehicle: {
         include: {
           make: true,
@@ -88,7 +94,7 @@ export async function GET(req: Request) {
       id: o.id,
       inventoryQty: o.inventoryQty,
       sellPriceCents: o.sellPriceCents,
-      partType: o.part.partType,
+      partType: o.part.partType.name,
       make: o.vehicle.make.name,
       model: o.vehicle.model.name,
       engine: o.vehicle.engine.name,
@@ -124,7 +130,7 @@ export async function GET(req: Request) {
       title: best.part.title,
       description: best.part.description,
       imageUrl: best.part.imageUrl,
-      partType: best.part.partType,
+      partType: best.part.partType.name,
     },
     availability: {
       inStock: best.inventoryQty > 0,

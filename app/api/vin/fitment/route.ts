@@ -59,7 +59,11 @@ export async function GET(req: Request) {
         engine: true,
         offers: {
           include: {
-            part: true,
+            part: {
+              include: {
+                partType: true,
+              },
+            },
           },
         },
       },
@@ -95,7 +99,7 @@ export async function GET(req: Request) {
       return {
         offerId: offer.id,
         partId: offer.partId,
-        partType: offer.part.partType,
+        partType: offer.part.partType.name,
         title: offer.part.title,
         sellPriceCents: offer.sellPriceCents,
         selectedPriceCents,

@@ -15,7 +15,11 @@ export async function syncAllVendorPrices() {
           engine: true,
         },
       },
-      part: true,
+      part: {
+        include: {
+          partType: true,
+        },
+      },
     },
     orderBy: [
       { vehicle: { make: { name: "asc" } } },
@@ -38,7 +42,7 @@ export async function syncAllVendorPrices() {
       model: offer.vehicle.model.name,
       year: offer.vehicle.year,
       engine: offer.vehicle.engine.name,
-      partType: offer.part.partType,
+      partType: offer.part.partType.name,
     };
 
     const amazon = await fetchAmazonPrice({
@@ -57,7 +61,7 @@ export async function syncAllVendorPrices() {
     );
 
     let syncStatus: string = "failed";
-    let syncError : string | null =
+    let syncError: string | null =
       amazon.error || aPremium.error || "No vendor prices found";
 
     if (amazon.priceCents && aPremium.priceCents) {

@@ -17,19 +17,10 @@ function extractKnownReferenceNumbers(text: string) {
     .map((m) => normalizeRef(m))
     .filter((m) => {
       if (m.length < 5) return false;
-
-      // reject all-letter junk like HIGHOUTPUT
       if (!/\d/.test(m)) return false;
-
-      // reject plain year
       if (/^(19|20)\d{2}$/.test(m)) return false;
-
-      // reject date-like 8-digit values like 20170222
       if (/^(19|20)\d{6}$/.test(m)) return false;
-
-      // reject concatenated year ranges like 20182020 / 20102013
       if (/^(19|20)\d{2}(19|20)\d{2}$/.test(m)) return false;
-
       return true;
     });
 
@@ -46,14 +37,15 @@ export async function findAndStoreVendorCandidates() {
           engine: true,
         },
       },
-      part: true,
+      part: {
+        include: {
+          partType: true,
+        },
+      },
     },
   });
 
   for (const offer of offers) {
-    // Assumption:
-    // sourceId contains known OEM/interchange numbers coming from your source feed.
-    // If your refs live somewhere else, change only this line.
     const knownReferenceNumbers = extractKnownReferenceNumbers(
       `${offer.sourceId ?? ""}`
     );
@@ -63,7 +55,7 @@ export async function findAndStoreVendorCandidates() {
       model: offer.vehicle.model.name,
       year: offer.vehicle.year,
       engine: offer.vehicle.engine.name,
-      partType: offer.part.partType,
+      partType: offer.part.partType.name,
       referenceNumbers: knownReferenceNumbers,
     };
 
