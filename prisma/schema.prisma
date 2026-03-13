@@ -173,3 +173,26 @@ model Quote {
   itemPriceCents Int
   createdAt      DateTime @default(now())
 }
+
+model AdminUser {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  name         String?
+  isActive     Boolean        @default(true)
+  sessions     AdminSession[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model AdminSession {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  adminUserId String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  adminUser  AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
