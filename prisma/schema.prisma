@@ -8,21 +8,21 @@ datasource db {
 }
 
 model Make {
-  id        String   @id @default(cuid())
-  name      String   @unique
+  id        String    @id @default(cuid())
+  name      String    @unique
   models    Model[]
   vehicles  Vehicle[]
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model Model {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   makeId    String
-  make      Make     @relation(fields: [makeId], references: [id], onDelete: Cascade)
+  make      Make      @relation(fields: [makeId], references: [id], onDelete: Cascade)
   engines   Engine[]
   vehicles  Vehicle[]
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@unique([makeId, name])
   @@index([makeId])
@@ -31,7 +31,7 @@ model Model {
 model Engine {
   id        String    @id @default(cuid())
   name      String
-  modelId    String
+  modelId   String
   model     Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
   vehicles  Vehicle[]
   createdAt DateTime  @default(now())
@@ -41,69 +41,98 @@ model Engine {
 }
 
 model Vehicle {
-  id         String   @id @default(cuid())
-  makeId      String
-  modelId     String
-  engineId    String
-  year        Int
+  id       String @id @default(cuid())
+  makeId   String
+  modelId  String
+  engineId String
+  year     Int
 
-  make       Make     @relation(fields: [makeId], references: [id], onDelete: Cascade)
-  model      Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  engine     Engine   @relation(fields: [engineId], references: [id], onDelete: Cascade)
+  make   Make   @relation(fields: [makeId], references: [id], onDelete: Cascade)
+  model  Model  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  engine Engine @relation(fields: [engineId], references: [id], onDelete: Cascade)
 
-  offers     Offer[]
-  createdAt  DateTime @default(now())
+  offers           Offer[]
+  vehiclePartTypes VehiclePartType[]
+  createdAt        DateTime          @default(now())
 
   @@unique([makeId, modelId, engineId, year])
+  @@index([makeId])
+  @@index([modelId])
+  @@index([engineId])
+  @@index([year])
   @@index([makeId, modelId, engineId, year])
+}
+
+model PartType {
+  id        String            @id @default(cuid())
+  name      String            @unique
+  parts     Part[]
+  fitments  VehiclePartType[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model VehiclePartType {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  partTypeId String
+  createdAt  DateTime @default(now())
+
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  partType PartType @relation(fields: [partTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, partTypeId])
+  @@index([vehicleId])
+  @@index([partTypeId])
 }
 
 model Part {
   id          String   @id @default(cuid())
-  partType    String
+  partTypeId  String
   title       String
   description String?
   imageUrl    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  offers      Offer[]
+  partType PartType @relation(fields: [partTypeId], references: [id], onDelete: Restrict)
+  offers   Offer[]
 
-  @@index([partType])
+  @@index([partTypeId])
 }
 
 model Offer {
-  id                  String   @id @default(cuid())
-  vehicleId           String
-  partId              String
+  id        String @id @default(cuid())
+  vehicleId String
+  partId    String
 
-  sourceId            String   // internal only: "manual", "distA", "distB"
-  sourceSku           String?
-  inventoryQty        Int
-  costPriceCents      Int
+  sourceId       String // internal only: "manual", "distA", "distB"
+  sourceSku      String?
+  inventoryQty   Int
+  costPriceCents Int
 
-  referencePriceCents Int?     // final chosen vendor reference price
-  sellPriceCents      Int      // customer-facing item price
+  referencePriceCents Int? // final chosen vendor reference price
+  sellPriceCents      Int // customer-facing item price
 
-  amazonPriceCents    Int?
-  aPremiumPriceCents  Int?
+  amazonPriceCents   Int?
+  aPremiumPriceCents Int?
 
-  amazonUrl           String?
-  aPremiumUrl         String?
+  amazonUrl   String?
+  aPremiumUrl String?
 
-  syncStatus          String?  // "success", "failed", "partial"
-  syncError           String?
-  lastPriceSyncAt     DateTime?
+  syncStatus      String? // "success", "failed", "partial"
+  syncError       String?
+  lastPriceSyncAt DateTime?
 
-  currency            String   @default("CAD")
-  leadTimeDays        Int?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  currency     String   @default("CAD")
+  leadTimeDays Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  candidates          VendorCandidate[]
-  vehicle             Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  part                Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
-  
+  candidates VendorCandidate[]
+  vehicle    Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  part       Part              @relation(fields: [partId], references: [id], onDelete: Cascade)
+
   @@index([vehicleId])
   @@index([partId])
   @@index([sourceId])
@@ -111,21 +140,21 @@ model Offer {
 }
 
 model VendorCandidate {
-  id              String   @id @default(cuid())
-  offerId         String
-  vendor          String   // "amazon" | "apremium"
-  title           String
-  productUrl      String
-  priceCents      Int?
-  badge           String?
-  inStock         Boolean?
-  score           Int      @default(0)
-  selected        Boolean  @default(false)
-  rawText         String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id         String   @id @default(cuid())
+  offerId    String
+  vendor     String // "amazon" | "apremium"
+  title      String
+  productUrl String
+  priceCents Int?
+  badge      String?
+  inStock    Boolean?
+  score      Int      @default(0)
+  selected   Boolean  @default(false)
+  rawText    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  offer           Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
   @@index([offerId])
   @@index([vendor])

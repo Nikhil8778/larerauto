@@ -11,62 +11,10 @@ export async function GET(req: Request) {
   const year = searchParams.get("year") ?? "";
 
   try {
-    if (kind === "makes") {
-      const makes = await prisma.make.findMany({
-        select: { name: true },
-        orderBy: { name: "asc" },
-      });
-
-      return NextResponse.json({
-        items: makes.map((x) => x.name),
-      });
-    }
-
-    if (kind === "models") {
-      if (!make) return NextResponse.json({ items: [] });
-
-      const models = await prisma.model.findMany({
-        where: {
-          make: { name: make },
-        },
-        select: { name: true },
-        orderBy: { name: "asc" },
-      });
-
-      return NextResponse.json({
-        items: models.map((x) => x.name),
-      });
-    }
-
-    if (kind === "engines") {
-      if (!make || !model) return NextResponse.json({ items: [] });
-
-      const engines = await prisma.engine.findMany({
-        where: {
-          model: {
-            name: model,
-            make: { name: make },
-          },
-        },
-        select: { name: true },
-        orderBy: { name: "asc" },
-      });
-
-      return NextResponse.json({
-        items: engines.map((x) => x.name),
-      });
-    }
-
     if (kind === "years") {
-      if (!make || !model || !engine) return NextResponse.json({ items: [] });
-
       const vehicles = await prisma.vehicle.findMany({
-        where: {
-          make: { name: make },
-          model: { name: model },
-          engine: { name: engine },
-        },
         select: { year: true },
+        distinct: ["year"],
         orderBy: { year: "desc" },
       });
 
@@ -75,32 +23,118 @@ export async function GET(req: Request) {
       });
     }
 
+    if (kind === "makes") {
+      if (!year) {
+        const makes = await prisma.make.findMany({
+          select: { name: true },
+          orderBy: { name: "asc" },
+        });
+
+        return NextResponse.json({
+          items: makes.map((x) => x.name),
+        });
+      }
+
+      const vehicles = await prisma.vehicle.findMany({
+        where: {
+          year: Number(year),
+        },
+        select: {
+          make: {
+            select: { name: true },
+          },
+        },
+        distinct: ["makeId"],
+        orderBy: {
+          make: { name: "asc" },
+        },
+      });
+
+      return NextResponse.json({
+        items: vehicles.map((x) => x.make.name),
+      });
+    }
+
+    if (kind === "models") {
+      if (!make || !year) return NextResponse.json({ items: [] });
+
+      const vehicles = await prisma.vehicle.findMany({
+        where: {
+          year: Number(year),
+          make: { name: make },
+        },
+        select: {
+          model: {
+            select: { name: true },
+          },
+        },
+        distinct: ["modelId"],
+        orderBy: {
+          model: { name: "asc" },
+        },
+      });
+
+      return NextResponse.json({
+        items: vehicles.map((x) => x.model.name),
+      });
+    }
+
+    if (kind === "engines") {
+      if (!make || !model || !year) return NextResponse.json({ items: [] });
+
+      const vehicles = await prisma.vehicle.findMany({
+        where: {
+          year: Number(year),
+          make: { name: make },
+          model: { name: model },
+        },
+        select: {
+          engine: {
+            select: { name: true },
+          },
+        },
+        distinct: ["engineId"],
+        orderBy: {
+          engine: { name: "asc" },
+        },
+      });
+
+      return NextResponse.json({
+        items: vehicles.map((x) => x.engine.name),
+      });
+    }
+
     if (kind === "partTypes") {
       if (!make || !model || !engine || !year) {
         return NextResponse.json({ items: [] });
       }
 
-      const parts = await prisma.part.findMany({
-        where: {
-          offers: {
-            some: {
-              vehicle: {
-                make: { name: make },
-                model: { name: model },
-                engine: { name: engine },
-                year: Number(year),
-              },
-            },
-          },
+      const parts = await prisma.vehiclePartType.findMany({
+  where: {
+    vehicle: {
+          year: Number(year),
+          make: { name: make },
+          model: { name: model },
+          engine: { name: engine },
         },
-        select: { partType: true },
-        distinct: ["partType"],
-        orderBy: { partType: "asc" },
-      });
+      },
+    select: {
+      partType: {
+        select: {
+          name: true,
+      },
+    },
+  },
+  orderBy: {
+    partType: {
+      name: "asc",
+    },
+  },
+});
 
-      return NextResponse.json({
-        items: parts.map((x) => x.partType),
-      });
+return NextResponse.json({
+  items: [...new Set(parts.map((x) => x.partType.name))],
+}); 
     }
 
     return NextResponse.json({ items: [] });

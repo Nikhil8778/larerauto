@@ -1,10 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentAdminUser } from "@/lib/auth";
+import AdminLogoutButton from "./AdminLogoutButton";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const adminUser = await getCurrentAdminUser();
+
+  if (!adminUser) {
+    redirect("/admin/login");
+  }
+
   return (
     <div className="min-h-screen bg-slate-100">
       <div className="mx-auto grid min-h-screen max-w-7xl grid-cols-1 md:grid-cols-[260px_1fr]">
@@ -13,6 +22,9 @@ export default function AdminLayout({
             <div className="text-2xl font-black">Lare Auto Admin</div>
             <div className="mt-1 text-sm text-slate-300">
               Pricing, inventory, fitment
+            </div>
+            <div className="mt-4 text-xs font-medium text-slate-400">
+              {adminUser.email}
             </div>
           </div>
 
@@ -45,6 +57,10 @@ export default function AdminLayout({
               >
                 Inventory
               </Link>
+            </div>
+
+            <div className="mt-6">
+              <AdminLogoutButton />
             </div>
           </nav>
         </aside>

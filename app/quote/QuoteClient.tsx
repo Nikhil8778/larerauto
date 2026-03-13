@@ -4,18 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const FALLBACK_PART_TYPES = [
+  "Rotors & Brake Pads",
+  "Calipers",
+  "Bearings",
+  "Brake Drum",
   "Alternators",
   "Starters",
+  "Fuel Tanks",
   "Batteries",
   "Lights & Bulbs",
   "Fuses",
-  "Brake Pads",
-  "Rotors",
-  "Calipers",
-  "Bearings",
-  "Wheel Bearings",
-  "Brake Drum",
   "Control Arms",
+  "Wheel Bearings",
   "Sway Bar Links",
   "Struts",
   "Shocks",
@@ -26,27 +26,27 @@ const FALLBACK_PART_TYPES = [
   "Radiators",
   "Fuel Injectors",
   "Fuel Pumps",
-  "Fuel Tanks",
   "Timing Belts",
   "Gaskets",
   "Spark Plugs",
 ] as const;
 
-type PartType = (typeof FALLBACK_PART_TYPES)[number];
-
 const PART_ALIASES: Record<string, string> = {
-  "Wheel Bearing": "Wheel Bearings",
-  "Wheel Bearings": "Wheel Bearings",
   Alternator: "Alternators",
   Alternators: "Alternators",
-  Battery: "Batteries",
-  Batteries: "Batteries",
   Starter: "Starters",
   Starters: "Starters",
+  Battery: "Batteries",
+  Batteries: "Batteries",
   Bearing: "Bearings",
   Bearings: "Bearings",
+  "Wheel Bearing": "Wheel Bearings",
+  "Wheel Bearings": "Wheel Bearings",
   Caliper: "Calipers",
   Calipers: "Calipers",
+  Rotor: "Rotors & Brake Pads",
+  Rotors: "Rotors & Brake Pads",
+  "Brake Pads": "Rotors & Brake Pads",
 };
 
 function normalizePartType(input: string | null): string {
@@ -196,9 +196,7 @@ function FieldButton({
         disabled={disabled}
         className="mt-2 flex w-full items-center justify-between rounded-2xl border border-white/50 bg-white/70 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-slate-900/20 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className={value ? "text-slate-900" : "text-slate-500"}>
-          {value || placeholder}
-        </span>
+        <span className={value ? "text-slate-900" : "text-slate-500"}>{value || placeholder}</span>
         <span className="text-slate-500">
           <ChevronRight />
         </span>
@@ -208,7 +206,7 @@ function FieldButton({
 }
 
 async function fetchFitmentOptions(
-  kind: "makes" | "models" | "engines" | "years" | "partTypes",
+  kind: "years" | "makes" | "models" | "engines" | "partTypes",
   params?: Record<string, string>
 ) {
   const url = new URL("/api/fitment", window.location.origin);
@@ -230,20 +228,20 @@ export default function QuoteClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
+  const [year, setYear] = useState("");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [engine, setEngine] = useState("");
-  const [year, setYear] = useState("");
   const [partType, setPartType] = useState("Alternators");
   const [vin, setVin] = useState("");
 
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [makeOptions, setMakeOptions] = useState<string[]>([]);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [engineOptions, setEngineOptions] = useState<string[]>([]);
-  const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [partTypeOptions, setPartTypeOptions] = useState<string[]>([]);
 
-  const [picker, setPicker] = useState<null | "make" | "model" | "engine" | "year" | "part">(null);
+  const [picker, setPicker] = useState<null | "year" | "make" | "model" | "engine" | "part">(null);
 
   useEffect(() => {
     const incoming = sp.get("partType");
@@ -251,7 +249,7 @@ export default function QuoteClient() {
   }, [sp]);
 
   useEffect(() => {
-    fetchFitmentOptions("makes").then(setMakeOptions);
+    fetchFitmentOptions("years").then(setYearOptions);
   }, []);
 
   const vinIsValid = useMemo(() => {
@@ -260,22 +258,40 @@ export default function QuoteClient() {
   }, [vin]);
 
   const canSubmit = useMemo(() => {
-    return Boolean(make && model && engine && year && partType && vinIsValid);
-  }, [make, model, engine, year, partType, vinIsValid]);
+    return Boolean(year && make && model && engine && partType && vinIsValid);
+  }, [year, make, model, engine, partType, vinIsValid]);
+
+  async function handleSelectYear(value: string) {
+    setYear(value);
+    setMake("");
+    setModel("");
+    setEngine("");
+    setPartType(normalizePartType(sp.get("partType")));
+
+    setMakeOptions([]);
+    setModelOptions([]);
+    setEngineOptions([]);
+    setPartTypeOptions([]);
+
+    const makes = await fetchFitmentOptions("makes", { year: value });
+    setMakeOptions(makes);
+    setPicker(null);
+  }
 
   async function handleSelectMake(value: string) {
     setMake(value);
     setModel("");
     setEngine("");
-    setYear("");
     setPartType(normalizePartType(sp.get("partType")));
 
     setModelOptions([]);
     setEngineOptions([]);
-    setYearOptions([]);
     setPartTypeOptions([]);
 
-    const models = await fetchFitmentOptions("models", { make: value });
+    const models = await fetchFitmentOptions("models", {
+      year,
+      make: value,
+    });
     setModelOptions(models);
     setPicker(null);
   }
@@ -283,43 +299,28 @@ export default function QuoteClient() {
   async function handleSelectModel(value: string) {
     setModel(value);
     setEngine("");
-    setYear("");
     setPartType(normalizePartType(sp.get("partType")));
 
     setEngineOptions([]);
-    setYearOptions([]);
     setPartTypeOptions([]);
 
-    const engines = await fetchFitmentOptions("engines", { make, model: value });
+    const engines = await fetchFitmentOptions("engines", {
+      year,
+      make,
+      model: value,
+    });
     setEngineOptions(engines);
     setPicker(null);
   }
 
   async function handleSelectEngine(value: string) {
     setEngine(value);
-    setYear("");
-    setPartType(normalizePartType(sp.get("partType")));
 
-    setYearOptions([]);
-    setPartTypeOptions([]);
-
-    const years = await fetchFitmentOptions("years", {
+    const parts = await fetchFitmentOptions("partTypes", {
+      year,
       make,
       model,
       engine: value,
-    });
-    setYearOptions(years);
-    setPicker(null);
-  }
-
-  async function handleSelectYear(value: string) {
-    setYear(value);
-
-    const parts = await fetchFitmentOptions("partTypes", {
-      make,
-      model,
-      engine,
-      year: value,
     });
 
     setPartTypeOptions(parts);
@@ -341,10 +342,10 @@ export default function QuoteClient() {
     if (!canSubmit) return;
 
     const params = new URLSearchParams({
+      year,
       make,
       model,
       engine,
-      year,
       partType,
       vin,
     });
@@ -367,10 +368,21 @@ export default function QuoteClient() {
 
         <div className="mt-5 space-y-4">
           <FieldButton
+            label="Year"
+            value={year}
+            placeholder="Select year..."
+            onClick={() => setPicker("year")}
+          />
+
+          <FieldButton
             label="Make"
             value={make}
-            placeholder="Select make..."
-            onClick={() => setPicker("make")}
+            placeholder={year ? "Select make..." : "Select year first"}
+            onClick={() => {
+              if (!year) return;
+              setPicker("make");
+            }}
+            disabled={!year}
           />
 
           <FieldButton
@@ -396,25 +408,14 @@ export default function QuoteClient() {
           />
 
           <FieldButton
-            label="Year"
-            value={year}
-            placeholder={engine ? "Select year..." : "Select engine first"}
-            onClick={() => {
-              if (!engine) return;
-              setPicker("year");
-            }}
-            disabled={!engine}
-          />
-
-          <FieldButton
             label="Part Type"
             value={partType}
-            placeholder={year ? "Select part type..." : "Select year first"}
+            placeholder={engine ? "Select part type..." : "Select engine first"}
             onClick={() => {
-              if (!year) return;
+              if (!engine) return;
               setPicker("part");
             }}
-            disabled={!year}
+            disabled={!engine}
           />
 
           <div>
@@ -428,7 +429,7 @@ export default function QuoteClient() {
 
             {!vinIsValid && (
               <p className="mt-2 text-xs font-semibold text-rose-600">
-                VIN must be exactly 17 characters (letters/numbers). I/O/Q are not allowed.
+                VIN must be exactly 17 characters. I/O/Q are not allowed.
               </p>
             )}
 
@@ -447,10 +448,21 @@ export default function QuoteClient() {
       </form>
 
       <Picker
+        open={picker === "year"}
+        title="Year"
+        items={yearOptions}
+        selected={year}
+        searchable
+        onClose={() => setPicker(null)}
+        onSelect={handleSelectYear}
+      />
+
+      <Picker
         open={picker === "make"}
         title="Make"
         items={makeOptions}
         selected={make}
+        searchable
         onClose={() => setPicker(null)}
         onSelect={handleSelectMake}
       />
@@ -460,6 +472,7 @@ export default function QuoteClient() {
         title="Model"
         items={modelOptions}
         selected={model}
+        searchable
         onClose={() => setPicker(null)}
         onSelect={handleSelectModel}
       />
@@ -469,17 +482,9 @@ export default function QuoteClient() {
         title="Engine"
         items={engineOptions}
         selected={engine}
+        searchable
         onClose={() => setPicker(null)}
         onSelect={handleSelectEngine}
-      />
-
-      <Picker
-        open={picker === "year"}
-        title="Year"
-        items={yearOptions}
-        selected={year}
-        onClose={() => setPicker(null)}
-        onSelect={handleSelectYear}
       />
 
       <Picker
@@ -487,6 +492,7 @@ export default function QuoteClient() {
         title="Part Type"
         items={partTypeOptions.length ? partTypeOptions : [...FALLBACK_PART_TYPES]}
         selected={partType}
+        searchable
         onClose={() => setPicker(null)}
         onSelect={(v) => {
           setPartType(normalizePartType(v));
