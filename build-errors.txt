@@ -1,0 +1,85 @@
+
+> lareauto-web@0.1.0 build
+> prisma generate && next build
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Loaded Prisma config from prisma.config.ts.
+
+warn The Prisma config file in prisma.config.ts overrides the deprecated `package.json#prisma` property in package.json.
+  For more information, see: https://pris.ly/prisma-config
+
+Prisma config detected, skipping environment variable loading.
+Prisma schema loaded from prisma\schema.prisma
+
+✔ Generated Prisma Client (v6.19.2) to .\node_modules\@prisma\client in 256ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.4s
+  Running TypeScript ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/41) ...
+  Generating static pages using 7 workers (10/41) 
+  Generating static pages using 7 workers (20/41) 
+  Generating static pages using 7 workers (30/41) 
+✓ Generating static pages using 7 workers (41/41) in 2.1s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /about
+├ ƒ /admin
+├ ○ /admin-login
+├ ƒ /admin/automation
+├ ƒ /admin/candidates
+├ ƒ /admin/customers
+├ ƒ /admin/inventory
+├ ƒ /admin/invoices
+├ ƒ /admin/messages
+├ ƒ /admin/orders
+├ ƒ /admin/parts
+├ ƒ /admin/pricing
+├ ƒ /admin/sales
+├ ƒ /admin/settings
+├ ƒ /api/admin/automation
+├ ƒ /api/admin/candidates
+├ ƒ /api/admin/customers
+├ ƒ /api/admin/invoices
+├ ƒ /api/admin/login
+├ ƒ /api/admin/logout
+├ ƒ /api/admin/messages
+├ ƒ /api/admin/orders
+├ ƒ /api/admin/parts
+├ ƒ /api/admin/select-candidate
+├ ƒ /api/admin/settings
+├ ƒ /api/admin/sync-vendors
+├ ƒ /api/admin/update-offer
+├ ƒ /api/fitment
+├ ƒ /api/offers
+├ ƒ /api/vin/decode
+├ ƒ /api/vin/fitment
+├ ○ /cart
+├ ○ /catalog
+├ ○ /checkout
+├ ○ /contact
+├ ○ /quote
+├ ƒ /quote/result
+├ ○ /reviews
+└ ○ /vin
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
