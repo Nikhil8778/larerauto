@@ -11,7 +11,7 @@ export function middleware(req: NextRequest) {
   }
 
   if (
-    pathname === "/admin/login" ||
+    pathname === "/admin-login" ||
     pathname.startsWith("/api/admin/login") ||
     pathname.startsWith("/api/admin/logout")
   ) {
@@ -21,7 +21,7 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
 
   if (!token) {
-    const loginUrl = new URL("/admin/login", req.url);
+    const loginUrl = new URL("/admin-login", req.url);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -29,5 +29,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/admin/:path*", "/admin", "/api/admin/:path*"],
 };
