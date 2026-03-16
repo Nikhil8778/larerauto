@@ -206,6 +206,12 @@ model Customer {
   whatsappNumber String?
   companyName    String?
   notes          String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  province       String?
+  postalCode     String?
+  country        String? @default("Canada")
   isActive       Boolean     @default(true)
   orders         Order[]
   invoices       Invoice[]
@@ -217,6 +223,7 @@ model Customer {
   @@index([phone])
   @@index([whatsappNumber])
   @@index([firstName])
+  @@index([postalCode])
 }
 
 model Order {
@@ -235,7 +242,20 @@ model Order {
   totalCents         Int          @default(0)
   internalNotes      String?
   customerNotes      String?
-  sourceChannel      String?      // website | whatsapp | instagram | facebook | manual
+  sourceChannel      String?      // website | whatsapp | instagram | facebook | kijiji | karot | manual
+  deliveryChargeCents Int       @default(0)
+  taxPercentApplied   Float     @default(13)
+  paymentGateway      String?     // square | stripe
+  paymentReference    String?
+  paidAt              DateTime?
+  billingEmail        String?
+  addressLine1        String?
+  addressLine2        String?
+  city                String?
+  province            String?
+  postalCode          String?
+  country             String?   @default("Canada")
+  estimatedDeliveryText String?
   items              OrderItem[]
   invoices           Invoice[]
   customer           Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -247,6 +267,8 @@ model Order {
   @@index([paymentStatus])
   @@index([fulfillmentStatus])
   @@index([sourceChannel])
+  @@index([paymentGateway])
+  @@index([paymentReference])
   @@index([createdAt])
 }
 
@@ -291,6 +313,11 @@ model Invoice {
   paidAt           DateTime?
   notes            String?
   pdfUrl           String?
+  paymentGateway   String?
+  paymentReference String?
+  
+  emailSentAt      DateTime?
+  transactionId    String?
   customer         Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   order            Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
   items            InvoiceItem[]
@@ -301,6 +328,8 @@ model Invoice {
   @@index([orderId])
   @@index([status])
   @@index([invoiceNumber])
+  @@index([paymentGateway])
+  @@index([paymentReference])
   @@index([createdAt])
 }
 
