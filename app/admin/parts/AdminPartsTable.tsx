@@ -1,5 +1,3 @@
-"use client";
-
 type Row = {
   offerId: string;
   make: string;
@@ -11,15 +9,12 @@ type Row = {
   inventoryQty: number;
   sourceId: string;
   currency: string;
-
   amazonPriceCents: number | null;
   aPremiumPriceCents: number | null;
   selectedPriceCents: number | null;
   sellPriceCents: number;
-
   amazonUrl: string;
   aPremiumUrl: string;
-
   syncStatus: string;
   syncError: string;
   lastPriceSyncAt: string;
@@ -89,6 +84,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
             <th className="px-4 py-3 font-semibold">Year</th>
             <th className="px-4 py-3 font-semibold">Part Type</th>
             <th className="px-4 py-3 font-semibold">Title</th>
+            <th className="px-4 py-3 font-semibold">Inventory</th>
             <th className="px-4 py-3 font-semibold">Amazon Price</th>
             <th className="px-4 py-3 font-semibold">A-Premium Price</th>
             <th className="px-4 py-3 font-semibold">Selected Price</th>
@@ -102,16 +98,19 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.offerId} className="border-t align-top">
-              <td className="px-4 py-3">{row.make}</td>
-              <td className="px-4 py-3">{row.model}</td>
-              <td className="px-4 py-3">{row.engine}</td>
-              <td className="px-4 py-3">{row.year}</td>
-              <td className="px-4 py-3">{row.partType}</td>
-              <td className="px-4 py-3">
-                <div className="max-w-[260px] break-words">{row.title}</div>
-              </td>
+              <td className="px-4 py-3 whitespace-nowrap">{row.make}</td>
+              <td className="px-4 py-3 whitespace-nowrap">{row.model}</td>
+              <td className="px-4 py-3 whitespace-nowrap">{row.engine}</td>
+              <td className="px-4 py-3 whitespace-nowrap">{row.year}</td>
+              <td className="px-4 py-3 whitespace-nowrap">{row.partType}</td>
 
               <td className="px-4 py-3">
+                <div className="max-w-[220px] break-words">{row.title}</div>
+              </td>
+
+              <td className="px-4 py-3 whitespace-nowrap">{row.inventoryQty}</td>
+
+              <td className="px-4 py-3 whitespace-nowrap">
                 {row.amazonUrl ? (
                   <a
                     href={row.amazonUrl}
@@ -126,7 +125,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                 )}
               </td>
 
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 whitespace-nowrap">
                 {row.aPremiumUrl ? (
                   <a
                     href={row.aPremiumUrl}
@@ -141,20 +140,20 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                 )}
               </td>
 
-              <td className="px-4 py-3 font-semibold text-slate-900">
+              <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
                 {formatMoney(row.selectedPriceCents, row.currency)}
               </td>
 
-              <td className="px-4 py-3 font-semibold text-slate-900">
+              <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
                 {formatMoney(row.sellPriceCents, row.currency)}
               </td>
 
-              <td className="px-4 py-3 capitalize">{row.sourceId}</td>
+              <td className="px-4 py-3 whitespace-nowrap capitalize">{row.sourceId}</td>
 
               <td className="px-4 py-3">
                 <div>{statusBadge(row.syncStatus)}</div>
                 {row.syncError ? (
-                  <div className="mt-1 max-w-[200px] break-words text-xs text-red-600">
+                  <div className="mt-1 max-w-[180px] break-words text-xs text-red-600">
                     {row.syncError}
                   </div>
                 ) : null}
@@ -168,7 +167,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
 
           {rows.length === 0 && (
             <tr>
-              <td colSpan={13} className="px-4 py-6 text-center text-slate-500">
+              <td colSpan={14} className="px-4 py-6 text-center text-slate-500">
                 No offers found.
               </td>
             </tr>

@@ -51,6 +51,7 @@ function PaymentInner() {
   const [sdkReady, setSdkReady] = useState(false);
 
   const cardRef = useRef<any>(null);
+  const cardAttachedRef = useRef(false);
 
   useEffect(() => {
     const existing = document.querySelector(
@@ -108,13 +109,17 @@ function PaymentInner() {
         return;
       }
 
-      const payments = await window.Square.payments(appId, locationId);
-      const card = await payments.card();
-      await card.attach("#square-card-container");
-      cardRef.current = card;
+      if (!cardAttachedRef.current) {
+        const payments = await window.Square.payments(appId, locationId);
+        const card = await payments.card();
+        await card.attach("#square-card-container");
+        cardRef.current = card;
+        cardAttachedRef.current = true;
+      }
 
       setLoading(false);
-    } catch {
+    } catch (err) {
+      console.error("prepare payment error:", err);
       setError("Something went wrong while preparing payment.");
       setLoading(false);
     }
@@ -137,7 +142,7 @@ function PaymentInner() {
         return;
       }
 
-      const res = await fetch("/api/payments/create", {
+      const res = await fetch("/api/payments/square", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -152,17 +157,29 @@ function PaymentInner() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Unable to process payment.");
+        const detailText = Array.isArray(data.details)
+          ? data.details.map((d: any) => d.detail || d.code || "Payment failed").join(", ")
+          : "";
+        setError(detailText || data.error || "Unable to process payment.");
         setLoading(false);
         return;
       }
 
       router.push(
-        `/checkout/success?orderNumber=${encodeURIComponent(
+        `/checkout/success?orderId=${encodeURIComponent(
+          data.orderId
+        )}&invoiceId=${encodeURIComponent(
+          data.invoiceId
+        )}&orderToken=${encodeURIComponent(
+          data.orderToken
+        )}&invoiceToken=${encodeURIComponent(
+          data.invoiceToken
+        )}&orderNumber=${encodeURIComponent(
           data.orderNumber
         )}&invoiceNumber=${encodeURIComponent(data.invoiceNumber)}`
       );
-    } catch {
+    } catch (err) {
+      console.error("complete payment error:", err);
       setError("Something went wrong while processing payment.");
       setLoading(false);
     }

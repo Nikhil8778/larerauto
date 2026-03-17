@@ -1,123 +1,153 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { formatMoney } from "@/lib/pricing";
+import { useSearchParams } from "next/navigation";
 
-type Props = {
-  query: {
-    partType: string;
-    year: string;
-    make: string;
-    model: string;
-    engine: string;
-    vin?: string;
-  };
-  offer: null | {
-    offerId: string;
-    partType: string;
-    title: string;
-    description: string;
-    imageUrl: string;
-    stockQty: number;
-    itemPrice: number;
-  };
+type BestOffer = {
+  offerId: string;
+  partType: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  stockQty: number;
+  itemPrice: number;
 };
 
-export default function ResultClient({ query, offer }: Props) {
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
-        <h1 className="text-3xl font-black text-slate-900">Quote Result</h1>
-        <p className="mt-2 text-sm font-medium text-slate-700">
-          {query.partType} • {query.year} • {query.make} • {query.model} • {query.engine}
-        </p>
-      </div>
+type ResultClientProps = {
+  bestOffer: BestOffer | null;
+};
 
-      {!offer ? (
-        <div className="mt-8 rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
-          <div className="text-lg font-extrabold text-slate-900">No offers found</div>
-          <p className="mt-2 text-sm text-slate-700">
+function money(n: number) {
+  return n.toLocaleString("en-CA", {
+    style: "currency",
+    currency: "CAD",
+  });
+}
+
+export default function ResultClient({ bestOffer }: ResultClientProps) {
+  const sp = useSearchParams();
+
+  const year = sp.get("year") || "";
+  const make = sp.get("make") || "";
+  const model = sp.get("model") || "";
+  const engine = sp.get("engine") || "";
+  const partType = sp.get("partType") || "";
+
+  if (!bestOffer) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
+          <h1 className="text-4xl font-black text-slate-900">Quote Result</h1>
+          <div className="mt-2 text-sm font-semibold text-slate-700">
+            {partType} • {year} • {make} • {model} • {engine}
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-[28px] border border-white/40 bg-white/25 p-8 shadow-2xl backdrop-blur-xl">
+          <div className="text-3xl font-black text-slate-900">No offers found</div>
+          <p className="mt-3 text-sm font-medium text-slate-700">
             Try changing make/model/engine/year or go back to catalog.
           </p>
+
           <Link
-            className="mt-4 inline-block rounded-full bg-slate-900 px-6 py-3 text-sm font-extrabold text-white"
             href="/catalog"
+            className="mt-6 inline-flex rounded-full bg-slate-900 px-6 py-3 text-sm font-extrabold text-white hover:bg-slate-800"
           >
             Back to Catalog
           </Link>
         </div>
-      ) : (
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-start gap-4">
-              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/60 bg-white/70">
-                {offer.imageUrl ? (
-                  <Image
-                    src={offer.imageUrl}
-                    alt={offer.title}
-                    width={96}
-                    height={96}
-                    className="h-auto w-auto object-contain"
-                  />
-                ) : (
-                  <div className="text-xs font-bold text-slate-500">No image</div>
-                )}
-              </div>
+      </div>
+    );
+  }
 
-              <div className="flex-1">
-                <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-extrabold text-slate-800">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  {offer.stockQty > 0 ? `In Stock (${offer.stockQty})` : "Out of stock"}
-                </div>
+  const checkoutHref = `/checkout?offerId=${encodeURIComponent(
+    bestOffer.offerId
+  )}&partType=${encodeURIComponent(bestOffer.partType)}&price=${encodeURIComponent(
+    String(bestOffer.itemPrice)
+  )}&qty=1`;
 
-                <h2 className="mt-3 text-lg font-black text-slate-900">{offer.title}</h2>
-                <p className="mt-2 text-sm font-medium text-slate-700">{offer.description}</p>
-              </div>
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
+        <h1 className="text-4xl font-black text-slate-900">Quote Result</h1>
+        <div className="mt-2 text-sm font-semibold text-slate-700">
+          {partType} • {year} • {make} • {model} • {engine}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
+        <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
+          <div className="flex gap-4">
+            <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-white/70 text-sm font-bold text-slate-500">
+              {bestOffer.imageUrl ? (
+                <img
+                  src={bestOffer.imageUrl}
+                  alt={bestOffer.title}
+                  className="h-full w-full rounded-3xl object-cover"
+                />
+              ) : (
+                "No image"
+              )}
             </div>
 
-            <div className="mt-6 rounded-2xl border border-white/60 bg-white/70 p-5">
-              <div className="text-sm font-bold text-slate-700">Item price</div>
-              <div className="mt-1 text-4xl font-black text-slate-900">
-                {formatMoney(offer.itemPrice)}
+            <div className="flex-1">
+              <div className="inline-flex rounded-full bg-white/80 px-4 py-2 text-sm font-extrabold text-emerald-700">
+                In Stock ({bestOffer.stockQty})
               </div>
-              <div className="mt-2 text-xs font-semibold text-slate-600">
-                Taxes and delivery are calculated at checkout after you enter your address.
-              </div>
+
+              <h2 className="mt-3 text-4xl font-black text-slate-900">
+                {bestOffer.title}
+              </h2>
+
+              <p className="mt-2 text-lg font-medium text-slate-700">
+                {bestOffer.description}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
-            <div className="text-lg font-black text-slate-900">Next</div>
-            <p className="mt-2 text-sm font-medium text-slate-700">
-              Add to cart or buy now. You’ll enter your address on the next step to calculate delivery + HST.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              <Link
-                href={`/cart?offerId=${offer.offerId}`}
-                className="block w-full rounded-full bg-slate-900 px-6 py-3 text-center text-sm font-extrabold text-white hover:bg-slate-800"
-              >
-                Add to Cart
-              </Link>
-
-              <Link
-                href={`/checkout?offerId=${offer.offerId}`}
-                className="block w-full rounded-full border border-slate-900/20 bg-white/70 px-6 py-3 text-center text-sm font-extrabold text-slate-900 hover:bg-white"
-              >
-                Buy Now
-              </Link>
-
-              <Link
-                className="block text-center text-sm font-bold text-slate-700 hover:text-slate-900"
-                href="/catalog"
-              >
-                ← Back to Catalog
-              </Link>
+          <div className="mt-6 rounded-[24px] bg-white/70 p-6">
+            <div className="text-xl font-bold text-slate-700">Item price</div>
+            <div className="mt-2 text-6xl font-black text-slate-900">
+              {money(bestOffer.itemPrice)}
             </div>
+            <p className="mt-3 text-base font-medium text-slate-600">
+              Taxes and delivery are calculated at checkout after you enter your
+              address.
+            </p>
           </div>
         </div>
-      )}
+
+        <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
+          <h3 className="text-3xl font-black text-slate-900">Next</h3>
+          <p className="mt-3 text-base font-medium text-slate-700">
+            Add to cart or buy now. You&apos;ll enter your address on the next
+            step to calculate delivery + HST.
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <Link
+              href={checkoutHref}
+              className="flex w-full items-center justify-center rounded-full bg-slate-900 px-6 py-4 text-base font-extrabold text-white hover:bg-slate-800"
+            >
+              Add to Cart
+            </Link>
+
+            <Link
+              href={checkoutHref}
+              className="flex w-full items-center justify-center rounded-full bg-white px-6 py-4 text-base font-extrabold text-slate-900 hover:bg-slate-100"
+            >
+              Buy Now
+            </Link>
+          </div>
+
+          <Link
+            href="/catalog"
+            className="mt-6 inline-flex text-base font-bold text-slate-700 hover:text-slate-900"
+          >
+            ← Back to Catalog
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

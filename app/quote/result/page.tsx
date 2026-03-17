@@ -1,57 +1,63 @@
 import ResultClient from "./ResultClient";
-import { headers } from "next/headers";
 
-export const dynamic = "force-dynamic";
-
-type SearchParams = { [key: string]: string | string[] | undefined };
+type SearchParams = Promise<{
+  year?: string;
+  make?: string;
+  model?: string;
+  engine?: string;
+  partType?: string;
+  vin?: string;
+}>;
 
 export default async function QuoteResultPage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams: SearchParams;
 }) {
   const sp = await searchParams;
 
-  const partType = String(sp.partType ?? "");
-  const year = String(sp.year ?? "");
-  const make = String(sp.make ?? "");
-  const model = String(sp.model ?? "");
-  const engine = String(sp.engine ?? "");
-  const vin = String(sp.vin ?? "");
+  const year = sp.year ?? "";
+  const make = sp.make ?? "";
+  const model = sp.model ?? "";
+  const engine = sp.engine ?? "";
+  const partType = sp.partType ?? "";
+  const vin = sp.vin ?? "";
 
-  const query = { partType, year, make, model, engine, vin };
+  const qs = new URLSearchParams({
+    year,
+    make,
+    model,
+    engine,
+    partType,
+    vin,
+  });
 
-  let offer: any = null;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
-  if (partType && year && make && model && engine) {
-    const h = await headers();
-    const host = h.get("host") || "localhost:3000";
-    const proto = h.get("x-forwarded-proto") ?? "http";
+  let bestOffer = null;
 
-    const url = new URL(`/api/offers`, `${proto}://${host}`);
-    url.searchParams.set("partType", partType);
-    url.searchParams.set("year", year);
-    url.searchParams.set("make", make);
-    url.searchParams.set("model", model);
-    url.searchParams.set("engine", engine);
-    url.searchParams.set("vin", vin);
+  try {
+    const res = await fetch(`${baseUrl}/api/offers?${qs.toString()}`, {
+      cache: "no-store",
+    });
 
-    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
 
-    if (res.ok) {
-      const data = await res.json();
-
-      offer = {
+    if (data && data.product) {
+      bestOffer = {
         offerId: data.quoteId,
-        partType: data.product?.partType ?? partType,
-        title: data.product?.title ?? partType,
-        description: data.product?.description ?? "",
-        imageUrl: data.product?.imageUrl ?? "",
+        partType: data.product.partType,
+        title: data.product.title,
+        description: data.product.description ?? "",
+        imageUrl: data.product.imageUrl ?? "",
         stockQty: data.availability?.qty ?? 0,
         itemPrice: (data.pricing?.itemPriceCents ?? 0) / 100,
       };
     }
+  } catch (error) {
+    console.error("Quote fetch error:", error);
   }
 
-  return <ResultClient query={query} offer={offer} />;
+  return <ResultClient bestOffer={bestOffer} />;
 }

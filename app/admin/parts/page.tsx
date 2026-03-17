@@ -12,24 +12,18 @@ type AdminPartRow = {
   partType: string;
   title: string;
   inventoryQty: number;
-
   sellPriceCents: number;
   amazonPriceCents: number | null;
   aPremiumPriceCents: number | null;
   selectedPriceCents: number | null;
-
   amazonUrl: string;
   aPremiumUrl: string;
-
   syncStatus: string;
   syncError: string;
   lastPriceSyncAt: string;
-
   currency: string;
   sourceId: string;
 };
-
-export const dynamic = "force-dynamic";
 
 type SearchParams = {
   make?: string;
@@ -38,6 +32,15 @@ type SearchParams = {
   status?: string;
   inventory?: string;
 };
+
+type PartsApiResponse = {
+  rows: AdminPartRow[];
+  makeOptions: string[];
+  modelOptions: string[];
+  partTypeOptions: string[];
+};
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminPartsPage({
   searchParams,
@@ -51,38 +54,26 @@ export default async function AdminPartsPage({
   const proto = h.get("x-forwarded-proto") ?? "http";
 
   const url = new URL("/api/admin/parts", `${proto}://${host}`);
+
+  if (sp.make) url.searchParams.set("make", sp.make);
+  if (sp.model) url.searchParams.set("model", sp.model);
+  if (sp.partType) url.searchParams.set("partType", sp.partType);
+  if (sp.status) url.searchParams.set("status", sp.status);
+  if (sp.inventory) url.searchParams.set("inventory", sp.inventory);
+
   const res = await fetch(url.toString(), { cache: "no-store" });
 
   let rows: AdminPartRow[] = [];
+  let makeOptions: string[] = [];
+  let modelOptions: string[] = [];
+  let partTypeOptions: string[] = [];
 
   if (res.ok) {
-    const data = await res.json();
-    rows = (data.rows ?? []).map((row: any) => ({
-      offerId: row.offerId,
-      make: row.make,
-      model: row.model,
-      engine: row.engine,
-      year: row.year,
-      partType: row.partType,
-      title: row.title,
-      inventoryQty: row.inventoryQty ?? 0,
-
-      sellPriceCents: row.sellPriceCents ?? 0,
-      amazonPriceCents: row.amazonPriceCents ?? null,
-      aPremiumPriceCents: row.aPremiumPriceCents ?? null,
-      selectedPriceCents:
-        row.selectedPriceCents ?? row.referencePriceCents ?? null,
-
-      amazonUrl: row.amazonUrl ?? "",
-      aPremiumUrl: row.aPremiumUrl ?? "",
-
-      syncStatus: row.syncStatus ?? "",
-      syncError: row.syncError ?? "",
-      lastPriceSyncAt: row.lastPriceSyncAt ?? "",
-
-      currency: row.currency ?? "CAD",
-      sourceId: row.sourceId ?? "manual",
-    }));
+    const data: PartsApiResponse = await res.json();
+    rows = data.rows ?? [];
+    makeOptions = data.makeOptions ?? [];
+    modelOptions = data.modelOptions ?? [];
+    partTypeOptions = data.partTypeOptions ?? [];
   }
 
   const selectedMake = sp.make ?? "";
@@ -90,27 +81,6 @@ export default async function AdminPartsPage({
   const selectedPartType = sp.partType ?? "";
   const selectedStatus = sp.status ?? "";
   const selectedInventory = sp.inventory ?? "";
-
-  const makeOptions = [...new Set(rows.map((r) => r.make))].sort();
-  const modelOptions = [...new Set(rows.map((r) => r.model))].sort();
-  const partTypeOptions = [...new Set(rows.map((r) => r.partType))].sort();
-
-  const filteredRows = rows.filter((row) => {
-    if (selectedMake && row.make !== selectedMake) return false;
-    if (selectedModel && row.model !== selectedModel) return false;
-    if (selectedPartType && row.partType !== selectedPartType) return false;
-    if (
-      selectedStatus &&
-      row.syncStatus?.toLowerCase() !== selectedStatus.toLowerCase()
-    ) {
-      return false;
-    }
-
-    if (selectedInventory === "low" && row.inventoryQty > 2) return false;
-    if (selectedInventory === "out" && row.inventoryQty !== 0) return false;
-
-    return true;
-  });
 
   return (
     <div className="space-y-6">
@@ -120,6 +90,9 @@ export default async function AdminPartsPage({
             <h1 className="text-3xl font-black text-slate-900">Parts</h1>
             <p className="mt-2 text-sm font-medium text-slate-600">
               Professional control panel for pricing, sync, fitment, and inventory.
+            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              Showing up to 100 most recently updated offers.
             </p>
           </div>
 
@@ -141,7 +114,7 @@ export default async function AdminPartsPage({
       </div>
 
       <div className="rounded-3xl bg-white p-4 shadow-sm">
-        <AdminPartsTable rows={filteredRows} />
+        <AdminPartsTable rows={rows} />
       </div>
     </div>
   );

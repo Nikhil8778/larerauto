@@ -72,7 +72,19 @@ export async function findBestOffer(input: FindBestOfferInput) {
     orderBy: [{ sellPriceCents: "asc" }],
     take: 10,
   });
-
+  console.log("offers found:", offers.length);
+console.log(
+  offers.map((o) => ({
+    id: o.id,
+    price: o.sellPriceCents,
+    qty: o.inventoryQty,
+    partType: o.part.partType.name,
+    make: o.vehicle.make.name,
+    model: o.vehicle.model.name,
+    engine: o.vehicle.engine.name,
+    year: o.vehicle.year,
+  }))
+);
   if (!offers.length) return null;
 
   const best = offers[0];
@@ -80,7 +92,7 @@ export async function findBestOffer(input: FindBestOfferInput) {
   return {
     offerId: best.id,
     partType: best.part.partType.name,
-    title: best.part.title ?? best.part.partType.name,
+    title: best.part.title,
     description: best.part.description ?? "",
     imageUrl: best.part.imageUrl ?? "",
     stockQty: best.inventoryQty,
