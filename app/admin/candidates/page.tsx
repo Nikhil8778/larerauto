@@ -5,8 +5,12 @@ async function getData() {
     cache: "no-store",
   });
 
+  if (!res.ok) {
+    throw new Error("Failed to load candidates");
+  }
+
   const data = await res.json();
-  return data.rows;
+  return data.rows ?? [];
 }
 
 export default async function Page() {
@@ -14,8 +18,7 @@ export default async function Page() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Vendor Candidates</h1>
-
+      <h1 className="mb-6 text-2xl font-bold">Vendor Candidates</h1>
       <CandidateTable rows={rows} />
     </div>
   );

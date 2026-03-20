@@ -4,7 +4,7 @@ import { candidatePassesHardFitment } from "./candidate-score";
 
 type CandidateRow = {
   id: string;
-  vendor: string;
+  vendor: "amazon" | string;
   title: string;
   productUrl: string;
   priceCents: number | null;
@@ -23,6 +23,14 @@ type OfferInput = {
   partType: string;
 };
 
+type SyncOptions = {
+  take?: number;
+  make?: string;
+  model?: string;
+  partType?: string;
+  onlyPending?: boolean;
+};
+
 function isUsable(input: OfferInput, candidate: CandidateRow) {
   return (
     candidate.priceCents !== null &&
@@ -38,25 +46,75 @@ function shortlistTopThree(input: OfferInput, candidates: CandidateRow[]) {
     .slice(0, 3);
 }
 
-function cheapestAmongShortlist(candidates: CandidateRow[]) {
+function bestCandidateFromShortlist(candidates: CandidateRow[]) {
   if (candidates.length === 0) return null;
 
   return [...candidates].sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
+
     const aPrice = a.priceCents ?? Number.POSITIVE_INFINITY;
     const bPrice = b.priceCents ?? Number.POSITIVE_INFINITY;
-
-    if (aPrice !== bPrice) return aPrice - bPrice;
-    return b.score - a.score;
+    return aPrice - bPrice;
   })[0];
 }
 
-function bestVendorDisplayPrice(input: OfferInput, candidates: CandidateRow[]) {
-  const shortlist = shortlistTopThree(input, candidates);
-  return cheapestAmongShortlist(shortlist);
-}
+export async function syncOfferPrices(options: SyncOptions = {}) {
+  const { take, make, model, partType, onlyPending = true } = options;
 
-export async function syncOfferPrices() {
   const offers = await prisma.offer.findMany({
+    where: {
+      ...(make
+        ? {
+            vehicle: {
+              make: {
+                name: {
+                  equals: make,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+      ...(model
+        ? {
+            vehicle: {
+              ...(make
+                ? {
+                    make: {
+                      name: {
+                        equals: make,
+                        mode: "insensitive",
+                      },
+                    },
+                  }
+                : {}),
+              model: {
+                name: {
+                  equals: model,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+      ...(partType
+        ? {
+            part: {
+              partType: {
+                name: {
+                  equals: partType,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+      ...(onlyPending
+        ? {
+            OR: [{ syncStatus: "pending" }, { syncStatus: "failed" }],
+          }
+        : {}),
+    },
     include: {
       candidates: true,
       vehicle: {
@@ -72,7 +130,20 @@ export async function syncOfferPrices() {
         },
       },
     },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    ...(typeof take === "number" ? { take } : {}),
   });
+
+  console.log("Preparing offer ids for sync with options:", {
+    take,
+    make,
+    model,
+    partType,
+    onlyPending,
+  });
+  console.log("Syncing offer ids:", offers.map((o) => o.id));
 
   for (const offer of offers) {
     const candidates = (offer.candidates ?? []) as CandidateRow[];
@@ -91,14 +162,8 @@ export async function syncOfferPrices() {
     });
 
     const amazonCandidates = candidates.filter((c) => c.vendor === "amazon");
-    const apremiumCandidates = candidates.filter((c) => c.vendor === "apremium");
-
-    const amazonBest = bestVendorDisplayPrice(input, amazonCandidates);
-    const apremiumBest = bestVendorDisplayPrice(input, apremiumCandidates);
-
-    const selected = cheapestAmongShortlist(
-      [amazonBest, apremiumBest].filter((x): x is CandidateRow => x !== null)
-    );
+    const amazonShortlist = shortlistTopThree(input, amazonCandidates);
+    const selected = bestCandidateFromShortlist(amazonShortlist);
 
     if (selected) {
       await prisma.vendorCandidate.update({
@@ -116,18 +181,18 @@ export async function syncOfferPrices() {
     await prisma.offer.update({
       where: { id: offer.id },
       data: {
-        amazonPriceCents: amazonBest?.priceCents ?? null,
-        aPremiumPriceCents: apremiumBest?.priceCents ?? null,
-        amazonUrl: amazonBest?.productUrl ?? null,
-        aPremiumUrl: apremiumBest?.productUrl ?? null,
+        amazonPriceCents: selected?.priceCents ?? null,
+        aPremiumPriceCents: null,
+        amazonUrl: selected?.productUrl ?? null,
+        aPremiumUrl: null,
         referencePriceCents: selectedPriceCents,
         sellPriceCents: pricing?.sellPriceCents ?? 0,
-        sourceId: selected?.vendor ?? "manual",
+        sourceId: selected ? "amazon" : "manual",
         syncStatus: selectedPriceCents !== null ? "success" : "failed",
         syncError:
           selectedPriceCents !== null
             ? null
-            : "No valid priced candidate after hard fitment filtering",
+            : "No strict-fit Amazon priced candidate found",
         lastPriceSyncAt: new Date(),
       },
     });
@@ -137,26 +202,16 @@ export async function syncOfferPrices() {
       partType: input.partType,
       candidatesCount: candidates.length,
       amazonCandidatesCount: amazonCandidates.length,
-      apremiumCandidatesCount: apremiumCandidates.length,
-      amazonBest: amazonBest
-        ? {
-            title: amazonBest.title,
-            priceCents: amazonBest.priceCents,
-          }
-        : null,
-      apremiumBest: apremiumBest
-        ? {
-            title: apremiumBest.title,
-            priceCents: apremiumBest.priceCents,
-          }
-        : null,
       selected: selected
         ? {
             vendor: selected.vendor,
             title: selected.title,
             priceCents: selected.priceCents,
+            score: selected.score,
           }
         : null,
     });
   }
+
+  console.log(`Offer price sync complete for ${offers.length} offer(s).`);
 }

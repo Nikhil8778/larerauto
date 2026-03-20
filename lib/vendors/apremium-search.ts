@@ -1,5 +1,8 @@
 import * as cheerio from "cheerio";
-import type { CandidateSearchInput, VendorSearchCandidate } from "./candidate-types";
+import type {
+  CandidateSearchInput,
+  VendorSearchCandidate,
+} from "./candidate-types";
 
 function cleanText(value: string | undefined | null) {
   return (value ?? "")
@@ -26,11 +29,8 @@ function isLikelyReferenceNumber(value: string) {
   const v = normalizeRef(value);
 
   if (v.length < 5) return false;
-
-  // must contain a number
   if (!/\d/.test(v)) return false;
 
-  // reject CSS / HTML tokens
   if (
     [
       "DATANIMG",
@@ -49,22 +49,16 @@ function isLikelyReferenceNumber(value: string) {
       "SRCSET",
       "STYLE",
       "WIDTH",
-      "HEIGHT"
+      "HEIGHT",
     ].includes(v)
   ) {
     return false;
   }
 
-  // reject year
   if (/^(19|20)\d{2}$/.test(v)) return false;
-
-  // reject date
   if (/^(19|20)\d{6}$/.test(v)) return false;
-
-  // reject merged year ranges
   if (/^(19|20)\d{2}(19|20)\d{2}$/.test(v)) return false;
 
-  // require a good part-number pattern
   if (!/[A-Z]\d{2,}/.test(v) && !/\d{5,}/.test(v)) {
     return false;
   }
@@ -82,9 +76,18 @@ function extractReferenceNumbers(text: string) {
 }
 
 function buildQueries(input: CandidateSearchInput) {
-  const baseQuery = [input.year, input.make, input.model, input.partType]
-    .filter(Boolean)
-    .join(" ");
+  const baseQueries = [
+    [input.year, input.make, input.model, input.engine, input.partType]
+      .filter(Boolean)
+      .join(" "),
+    [input.year, input.make, input.model, input.partType]
+      .filter(Boolean)
+      .join(" "),
+    [input.make, input.model, input.engine, input.partType]
+      .filter(Boolean)
+      .join(" "),
+    [input.make, input.model, input.partType].filter(Boolean).join(" "),
+  ];
 
   const refQueries = (input.referenceNumbers ?? [])
     .map((ref) => normalizeRef(ref))
@@ -92,7 +95,7 @@ function buildQueries(input: CandidateSearchInput) {
     .slice(0, 3)
     .map((ref) => `${ref} ${input.partType}`);
 
-  return [baseQuery, ...refQueries];
+  return [...new Set([...baseQueries, ...refQueries].filter(Boolean))];
 }
 
 function buildSearchUrl(query: string) {
@@ -159,12 +162,63 @@ function seemsRelevant(title: string, partType: string) {
       !t.includes("cap") &&
       !t.includes("strap") &&
       !t.includes("filler") &&
-      !t.includes("pump") &&
-      !t.includes("sending unit")
+      !t.includes("pump")
     );
   }
 
   return t.includes(p);
+}
+
+function randomDelay(minMs: number, maxMs: number) {
+  const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  return new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+function buildHeaders() {
+  return {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    Accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-CA,en-US;q=0.9,en;q=0.8",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+    Referer: "https://ca.a-premium.com/",
+    Origin: "https://ca.a-premium.com",
+    DNT: "1",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+  };
+}
+
+async function fetchWithRetry(url: string, attempts = 3) {
+  let lastStatus: number | null = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const res = await fetch(url, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+
+    lastStatus = res.status;
+
+    if (res.ok) {
+      return res;
+    }
+
+    console.log(
+      `A-Premium non-OK status: ${res.status} on attempt ${attempt}/${attempts} for ${url}`
+    );
+
+    if (attempt < attempts) {
+      await randomDelay(2500, 5000);
+    }
+  }
+
+  return new Response(null, { status: lastStatus ?? 500 });
 }
 
 export async function searchAPremiumCandidates(
@@ -181,22 +235,27 @@ export async function searchAPremiumCandidates(
       console.log("A-Premium query:", query);
       console.log("A-Premium URL:", url);
 
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          "Accept-Language": "en-CA,en;q=0.9",
-          Referer: "https://ca.a-premium.com/",
-        },
-        cache: "no-store",
-      });
+      await randomDelay(1500, 3000);
+
+      const res = await fetchWithRetry(url, 3);
 
       if (!res.ok) {
-        console.log("A-Premium non-OK status:", res.status, "for query:", query);
         continue;
       }
 
       const html = await res.text();
+
+      const blocked =
+        /access denied/i.test(html) ||
+        /forbidden/i.test(html) ||
+        /captcha/i.test(html) ||
+        /verify you are human/i.test(html);
+
+      if (blocked) {
+        console.log("A-Premium block page detected for query:", query);
+        continue;
+      }
+
       const $ = cheerio.load(html);
 
       $('a[href*="/product/"]').each((_, el) => {
@@ -262,6 +321,10 @@ export async function searchAPremiumCandidates(
           referenceNumbers,
         });
       });
+
+      if (candidates.length > 0) {
+        break;
+      }
     }
 
     console.log("A-Premium candidates found:", candidates.length);

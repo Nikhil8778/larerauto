@@ -1,5 +1,8 @@
 import * as cheerio from "cheerio";
-import type { CandidateSearchInput, VendorSearchCandidate } from "./candidate-types";
+import type {
+  CandidateSearchInput,
+  VendorSearchCandidate,
+} from "./candidate-types";
 import { fetchAmazonProductPagePrice } from "./amazon-product";
 
 function cleanText(value: string | undefined | null) {
@@ -41,16 +44,10 @@ function isLikelyReferenceNumber(value: string) {
   if (v.length < 5) return false;
   if (!/\d/.test(v)) return false;
 
-  // reject plain year
   if (/^(19|20)\d{2}$/.test(v)) return false;
-
-  // reject date-like values like 20170222
   if (/^(19|20)\d{6}$/.test(v)) return false;
-
-  // reject concatenated year ranges like 20142019 / 20182020
   if (/^(19|20)\d{2}(19|20)\d{2}$/.test(v)) return false;
 
-  // reject obvious CSS / HTML-ish junk
   if (
     [
       "DATANIMG",
@@ -85,23 +82,12 @@ function extractReferenceNumbers(text: string) {
 }
 
 function buildAmazonQueries(input: CandidateSearchInput) {
-  const baseQuery = [
-    input.year,
-    input.make,
-    input.model,
-    input.engine,
-    input.partType,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const refQueries = (input.referenceNumbers ?? [])
-    .map((ref) => normalizeRef(ref))
-    .filter(isLikelyReferenceNumber)
-    .slice(0, 3)
-    .map((ref) => `${ref} ${input.partType}`);
-
-  return [baseQuery, ...refQueries];
+  // Keep this narrow to reduce cost and noise
+  return [
+    [input.year, input.make, input.model, input.engine, input.partType]
+      .filter(Boolean)
+      .join(" "),
+  ];
 }
 
 function buildAmazonSearchUrl(query: string) {
@@ -169,14 +155,30 @@ function randomDelay(minMs: number, maxMs: number) {
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
-async function fetchWithRetry(url: string, options: RequestInit) {
-  const res = await fetch(url, options);
+function buildZenRowsUrl(targetUrl: string, jsRender = false) {
+  const apiKey = process.env.ZENROWS_API_KEY;
 
-  if (res.status === 503) {
-    console.log("Amazon 503 detected — retrying after delay...");
-    await randomDelay(5000, 7000);
-    return fetch(url, options);
+  if (!apiKey) {
+    throw new Error("ZENROWS_API_KEY is missing in environment variables");
   }
+
+  const params = new URLSearchParams({
+    apikey: apiKey,
+    url: targetUrl,
+    js_render: jsRender ? "true" : "false",
+    premium_proxy: "true",
+  });
+
+  return `https://api.zenrows.com/v1/?${params.toString()}`;
+}
+
+async function fetchViaZenRows(targetUrl: string, jsRender = false) {
+  const zenRowsUrl = buildZenRowsUrl(targetUrl, jsRender);
+
+  const res = await fetch(zenRowsUrl, {
+    method: "GET",
+    cache: "no-store",
+  });
 
   return res;
 }
@@ -190,28 +192,23 @@ export async function searchAmazonCandidates(
 
   try {
     for (const query of queries) {
-      const url = buildAmazonSearchUrl(query);
+      const amazonUrl = buildAmazonSearchUrl(query);
+
       console.log("Amazon search query:", query);
-      console.log("Amazon search URL:", url);
+      console.log("Amazon search URL:", amazonUrl);
 
-      await randomDelay(2500, 4500);
+      await randomDelay(1200, 2000);
 
-      const res = await fetchWithRetry(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Language": "en-CA,en;q=0.9",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          "Upgrade-Insecure-Requests": "1",
-        },
-        cache: "no-store",
-      });
+      let res = await fetchViaZenRows(amazonUrl, false);
 
       if (!res.ok) {
-        console.log("Amazon non-OK status:", res.status, "for query:", query);
+        console.log("ZenRows Amazon search non-OK status:", res.status);
+        await randomDelay(1500, 2500);
+        res = await fetchViaZenRows(amazonUrl, true);
+      }
+
+      if (!res.ok) {
+        console.log("ZenRows Amazon search failed for query:", query);
         continue;
       }
 
@@ -221,7 +218,7 @@ export async function searchAmazonCandidates(
       const resultItems = $('div[data-component-type="s-search-result"]');
 
       resultItems.each((_, el) => {
-        if (lightweightCandidates.length >= 16) return false;
+        if (lightweightCandidates.length >= 12) return false;
 
         const node = $(el);
 
@@ -306,7 +303,7 @@ export async function searchAmazonCandidates(
     const enrichedCandidates: VendorSearchCandidate[] = [];
 
     for (const candidate of lightweightCandidates) {
-      await randomDelay(3500, 6000);
+      await randomDelay(1000, 1800);
 
       const pageData = await fetchAmazonProductPagePrice(candidate.productUrl);
 

@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { searchAmazonCandidates } from "./amazon-search";
-import { searchAPremiumCandidates } from "./apremium-search";
-import { candidatePassesHardFitment, scoreCandidate } from "./candidate-score";
+import {
+  candidatePassesHardFitment,
+  explainCandidateFailure,
+  scoreCandidate,
+} from "./candidate-score";
 
 function normalizeRef(value: string) {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -27,8 +30,82 @@ function extractKnownReferenceNumbers(text: string) {
   return [...new Set(cleaned)];
 }
 
-export async function findAndStoreVendorCandidates() {
+type FindOptions = {
+  take?: number;
+  make?: string;
+  model?: string;
+  partType?: string;
+  onlyUnsynced?: boolean;
+};
+
+export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
+  const {
+    take,
+    make,
+    model,
+    partType,
+    onlyUnsynced = true,
+  } = options;
+
   const offers = await prisma.offer.findMany({
+    where: {
+      ...(make
+        ? {
+            vehicle: {
+              make: {
+                name: {
+                  equals: make,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+      ...(model
+        ? {
+            vehicle: {
+              ...(make
+                ? {
+                    make: {
+                      name: {
+                        equals: make,
+                        mode: "insensitive",
+                      },
+                    },
+                  }
+                : {}),
+              model: {
+                name: {
+                  equals: model,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+      ...(partType
+        ? {
+            part: {
+              partType: {
+                name: {
+                  equals: partType,
+                  mode: "insensitive",
+                },
+              },
+            },
+          }
+        : {}),
+      ...(onlyUnsynced
+        ? {
+            OR: [
+              { syncStatus: null },
+              { syncStatus: "" },
+              { syncStatus: "pending" },
+              { syncStatus: "failed" },
+            ],
+          }
+        : {}),
+    },
     include: {
       vehicle: {
         include: {
@@ -43,11 +120,17 @@ export async function findAndStoreVendorCandidates() {
         },
       },
     },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    ...(typeof take === "number" ? { take } : {}),
   });
+
+  console.log("Processing", offers.length, "offer(s)...");
 
   for (const offer of offers) {
     const knownReferenceNumbers = extractKnownReferenceNumbers(
-      `${offer.sourceId ?? ""}`
+      `${offer.sourceId ?? ""} ${offer.sourceSku ?? ""} ${offer.part.title ?? ""}`
     );
 
     const input = {
@@ -59,13 +142,23 @@ export async function findAndStoreVendorCandidates() {
       referenceNumbers: knownReferenceNumbers,
     };
 
-    console.log("Searching candidates for:", input);
+    console.log("Searching Amazon candidates for:", input);
     console.log("Known reference numbers:", knownReferenceNumbers);
 
     const amazonCandidates = await searchAmazonCandidates(input);
-    const aPremiumCandidates = await searchAPremiumCandidates(input);
 
-    const allCandidates = [...amazonCandidates, ...aPremiumCandidates]
+    for (const candidate of amazonCandidates) {
+      const reasons = explainCandidateFailure(input, candidate);
+
+      console.log("Candidate review:", {
+        vendor: candidate.vendor,
+        title: candidate.title,
+        priceCents: candidate.priceCents,
+        reasons,
+      });
+    }
+
+    const strictCandidates = amazonCandidates
       .filter((c) => candidatePassesHardFitment(input, c))
       .map((c) => ({
         ...c,
@@ -75,7 +168,7 @@ export async function findAndStoreVendorCandidates() {
 
     console.log(
       "Top scored candidates:",
-      allCandidates.slice(0, 5).map((c) => ({
+      strictCandidates.slice(0, 5).map((c) => ({
         vendor: c.vendor,
         title: c.title,
         score: c.score,
@@ -88,7 +181,7 @@ export async function findAndStoreVendorCandidates() {
       where: { offerId: offer.id },
     });
 
-    for (const candidate of allCandidates) {
+    for (const candidate of strictCandidates) {
       await prisma.vendorCandidate.create({
         data: {
           offerId: offer.id,
@@ -113,8 +206,11 @@ export async function findAndStoreVendorCandidates() {
         aPremiumUrl: null,
         aPremiumPriceCents: null,
         referencePriceCents: null,
-        syncStatus: "pending",
-        syncError: null,
+        syncStatus: strictCandidates.length > 0 ? "pending" : "failed",
+        syncError:
+          strictCandidates.length > 0
+            ? null
+            : "No strict-fit Amazon candidates found",
       },
     });
   }

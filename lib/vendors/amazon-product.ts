@@ -66,24 +66,47 @@ function extractAsin(url: string) {
   return null;
 }
 
+function buildZenRowsUrl(targetUrl: string, jsRender = false) {
+  const apiKey = process.env.ZENROWS_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("ZENROWS_API_KEY is missing in environment variables");
+  }
+
+  const params = new URLSearchParams({
+    apikey: apiKey,
+    url: targetUrl,
+    js_render: jsRender ? "true" : "false",
+    premium_proxy: "true",
+  });
+
+  return `https://api.zenrows.com/v1/?${params.toString()}`;
+}
+
+async function fetchViaZenRows(targetUrl: string, jsRender = false) {
+  const zenRowsUrl = buildZenRowsUrl(targetUrl, jsRender);
+
+  const res = await fetch(zenRowsUrl, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  return res;
+}
+
 export async function fetchAmazonProductPagePrice(productUrl: string) {
   try {
     const asin = extractAsin(productUrl);
-    const url = asin
-      ? `https://www.amazon.ca/dp/${asin}`
-      : productUrl;
+    const url = asin ? `https://www.amazon.ca/dp/${asin}` : productUrl;
 
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept-Language": "en-CA,en;q=0.9",
-      },
-      cache: "no-store",
-    });
+    let res = await fetchViaZenRows(url, false);
 
     if (!res.ok) {
-      console.log("Amazon product page non-OK status:", res.status, url);
+      console.log("ZenRows Amazon product page non-OK status:", res.status, url);
+      res = await fetchViaZenRows(url, true);
+    }
+
+    if (!res.ok) {
       return {
         priceCents: null as number | null,
         rawText: null as string | null,
