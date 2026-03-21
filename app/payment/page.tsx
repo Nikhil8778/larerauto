@@ -158,11 +158,38 @@ function PaymentInner() {
 
       if (!res.ok) {
         const detailText = Array.isArray(data.details)
-          ? data.details.map((d: any) => d.detail || d.code || "Payment failed").join(", ")
+          ? data.details
+              .map((d: any) => d.detail || d.code || "Payment failed")
+              .join(", ")
           : "";
         setError(detailText || data.error || "Unable to process payment.");
         setLoading(false);
         return;
+      }
+
+      // Send confirmation emails only after successful payment
+      try {
+        const emailRes = await fetch("/api/payments/send-confirmation", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId: data.orderId,
+            invoiceId: data.invoiceId,
+            paymentReference: data.paymentReference,
+          }),
+        });
+
+        const emailData = await emailRes.json();
+
+        if (!emailRes.ok) {
+          console.error("send-confirmation error:", emailData);
+        } else {
+          console.log("send-confirmation success:", emailData);
+        }
+      } catch (emailErr) {
+        console.error("send-confirmation request failed:", emailErr);
       }
 
       router.push(
@@ -171,9 +198,9 @@ function PaymentInner() {
         )}&invoiceId=${encodeURIComponent(
           data.invoiceId
         )}&orderToken=${encodeURIComponent(
-          data.orderToken
+          data.orderToken || ""
         )}&invoiceToken=${encodeURIComponent(
-          data.invoiceToken
+          data.invoiceToken || ""
         )}&orderNumber=${encodeURIComponent(
           data.orderNumber
         )}&invoiceNumber=${encodeURIComponent(data.invoiceNumber)}`

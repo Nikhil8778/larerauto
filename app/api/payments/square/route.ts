@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { squareClient, SQUARE_LOCATION_ID } from "@/lib/square";
-import { resend, EMAIL_FROM } from "@/lib/email";
+import { resend, EMAILS } from "@/lib/email";
 import {
   buildInvoiceEmailHtml,
   buildInvoiceEmailText,
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
         });
 
         await resend.emails.send({
-          from: EMAIL_FROM,
+          from: `Lare Auto <${EMAILS.noReply}>`,
           to: customerEmail,
           subject: `Invoice ${updatedInvoice.invoiceNumber} for Order ${updatedOrder.orderNumber}`,
           html: buildInvoiceEmailHtml({
@@ -194,8 +194,12 @@ export async function POST(req: Request) {
             emailSentAt: new Date(),
           },
         });
-      } catch (emailError) {
+     } catch (emailError: any) {
         console.error("invoice email send error:", emailError);
+        console.error(
+          "invoice email send error detail:",
+          emailError?.message || emailError
+        );
       }
     }
 

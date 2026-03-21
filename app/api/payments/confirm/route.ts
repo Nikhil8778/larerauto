@@ -40,6 +40,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      mode: "manual-confirmation",
       orderId: order.id,
       orderNumber: order.orderNumber,
       invoiceId: invoice.id,
