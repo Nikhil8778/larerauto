@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import ChatbotWidget from "@/components/ChatbotWidget";
 
 export const metadata: Metadata = {
   title: "Lare Auto",
@@ -31,15 +32,17 @@ export default function RootLayout({
             </div>
             <div className="la-static-watermark-row">
               <span>Ford</span>
-              <span>BMW</span>
+               <span>BMW</span>
               <span>Mazda</span>
             </div>
           </div>
         </div>
 
         <SiteHeader />
-        {children}
+        <main>{children}</main>
         <SiteFooter />
+
+        <ChatbotWidget />
       </body>
     </html>
   );
