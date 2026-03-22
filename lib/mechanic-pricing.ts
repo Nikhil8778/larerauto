@@ -27,3 +27,10 @@ export function applyReferralDiscount(
     discountedPriceCents,
   };
 }
+
+export function calculateMechanicCredit(
+  itemPriceCents: number,
+  creditPct = 2
+) {
+  return Math.round(itemPriceCents * (creditPct / 100));
+}

@@ -257,7 +257,15 @@ model Order {
   country              String?      @default("Canada")
   estimatedDeliveryText String?
   mechanicId             String?
+  mechanic               Mechanic?    @relation("MechanicDirectOrders", fields: [mechanicId], references: [id], onDelete: SetNull)
   mechanicReferralCode   String?
+  orderPlacedByType        String?      // customer | mechanic | admin
+  mechanicDiscountCents    Int          @default(0)
+  referralCodeId           String?
+  referredByMechanicId     String?
+  mechanicCreditCents      Int          @default(0)
+  referredByMechanic       Mechanic?    @relation("ReferredOrders", fields: [referredByMechanicId], references: [id], onDelete: SetNull)
+  referralCode            MechanicReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
   referralDiscountCents  Int        @default(0)
   customerAccessToken  String       @unique @default(cuid())
 
@@ -277,6 +285,9 @@ model Order {
   @@index([createdAt])
   @@index([mechanicId])
   @@index([mechanicReferralCode]) 
+  @@index([orderPlacedByType])
+  @@index([referralCodeId])
+  @@index([referredByMechanicId])
 }
 
 model OrderItem {
@@ -443,12 +454,15 @@ model Mechanic {
   isActive         Boolean                @default(true)
   tradeDiscountPct Float                  @default(10)
   referralDiscountPct Float               @default(2)
+  creditBalanceCents Int                  @default(0)
   notes            String?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
   sessions         MechanicSession[]
   referralCodes    MechanicReferralCode[]
+  directOrders     Order[]                @relation("MechanicDirectOrders")
+  referredOrders   Order[]                @relation("ReferredOrders")
 
   @@index([email])
   @@index([shopName])
@@ -482,6 +496,7 @@ model MechanicReferralCode {
   updatedAt           DateTime  @updatedAt
 
   mechanic            Mechanic  @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+  orders              Order[]
 
   @@index([mechanicId])
   @@index([code])

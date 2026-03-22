@@ -92,3 +92,14 @@ export async function validateReferralCode(code: string) {
     referral,
   };
 }
+
+export async function markReferralCodeUsed(referralCodeId: string) {
+  return prisma.mechanicReferralCode.update({
+    where: { id: referralCodeId },
+    data: {
+      usedCount: {
+        increment: 1,
+      },
+    },
+  });
+}
