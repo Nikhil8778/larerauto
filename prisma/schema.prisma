@@ -256,7 +256,9 @@ model Order {
   postalCode           String?
   country              String?      @default("Canada")
   estimatedDeliveryText String?
-
+  mechanicId             String?
+  mechanicReferralCode   String?
+  referralDiscountCents  Int        @default(0)
   customerAccessToken  String       @unique @default(cuid())
 
   items                OrderItem[]
@@ -273,6 +275,8 @@ model Order {
   @@index([paymentGateway])
   @@index([paymentReference])
   @@index([createdAt])
+  @@index([mechanicId])
+  @@index([mechanicReferralCode]) 
 }
 
 model OrderItem {
@@ -426,4 +430,61 @@ model BusinessSetting {
   invoiceReminderReply  String?
   createdAt             DateTime   @default(now())
   updatedAt             DateTime   @updatedAt
+}
+
+model Mechanic {
+  id               String                 @id @default(cuid())
+  shopName         String
+  contactName      String
+  email            String                 @unique
+  phone            String?
+  passwordHash     String
+  isApproved       Boolean                @default(false)
+  isActive         Boolean                @default(true)
+  tradeDiscountPct Float                  @default(10)
+  referralDiscountPct Float               @default(2)
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  sessions         MechanicSession[]
+  referralCodes    MechanicReferralCode[]
+
+  @@index([email])
+  @@index([shopName])
+  @@index([isApproved])
+  @@index([isActive])
+}
+
+model MechanicSession {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  mechanicId String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  mechanic   Mechanic  @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+
+  @@index([mechanicId])
+  @@index([expiresAt])
+}
+
+model MechanicReferralCode {
+  id                  String    @id @default(cuid())
+  mechanicId          String
+  code                String    @unique
+  isActive            Boolean   @default(true)
+  expiresAt           DateTime?
+  usageLimit          Int?      @default(1)
+  usedCount           Int       @default(0)
+  customerDiscountPct Float     @default(2)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  mechanic            Mechanic  @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+
+  @@index([mechanicId])
+  @@index([code])
+  @@index([isActive])
+  @@index([expiresAt])
 }
