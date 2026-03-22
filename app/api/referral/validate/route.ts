@@ -15,20 +15,24 @@ export async function POST(request: NextRequest) {
 
     const result = await validateReferralCode(code);
 
-    if (!result.valid) {
+    if (!result.valid || !result.referral) {
       return NextResponse.json(
-        { success: false, message: result.message },
+        { success: false, message: result.message || "Invalid referral code." },
         { status: 404 }
       );
     }
 
+    const referral = result.referral;
+
     return NextResponse.json({
       success: true,
       referral: {
-        code: result.referral.code,
-        mechanicShopName: result.referral.mechanic.shopName,
-        customerDiscountPct: result.referral.customerDiscountPct,
-        expiresAt: result.referral.expiresAt,
+        id: referral.id,
+        mechanicId: referral.mechanic.id,
+        code: referral.code,
+        mechanicShopName: referral.mechanic.shopName,
+        customerDiscountPct: referral.customerDiscountPct,
+        expiresAt: referral.expiresAt,
       },
     });
   } catch (error) {
