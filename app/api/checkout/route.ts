@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMechanic } from "@/lib/mechanic-auth";
+import { validateReferralCode } from "@/lib/mechanic-referral";
 
 function buildOrderNumber() {
   return `ORD-${Date.now()}`;
@@ -46,7 +47,10 @@ export async function POST(req: Request) {
     const regularItemPriceCents = Number(body.regularItemPriceCents ?? itemPriceCents);
     const mechanicDiscountCents = Number(body.mechanicDiscountCents ?? 0);
 
+    const referralCode = body.referralCode ? String(body.referralCode).trim().toUpperCase() : null;
+
     const isMechanicCheckout = mode === "mechanic";
+    const isCustomerCheckout = !isMechanicCheckout;
     const paymentGateway = "square";
 
     if (
@@ -84,6 +88,21 @@ export async function POST(req: Request) {
         return NextResponse.json(
           { error: "Mechanic session is not valid." },
           { status: 401 }
+        );
+      }
+    }
+
+    let validatedReferral:
+      | Awaited<ReturnType<typeof validateReferralCode>>
+      | null = null;
+
+    if (isCustomerCheckout && referralCode) {
+      validatedReferral = await validateReferralCode(referralCode);
+
+      if (!validatedReferral.valid || !validatedReferral.referral) {
+        return NextResponse.json(
+          { error: validatedReferral.message || "Invalid referral code." },
+          { status: 400 }
         );
       }
     }
@@ -189,11 +208,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const subtotalCents = itemPriceCents * quantity;
-    const taxPercentApplied =
-      subtotalCents + deliveryCents > 0
-        ? Number((((taxCents / (subtotalCents + deliveryCents)) * 100) || 0).toFixed(2))
-        : 13;
+    const originalSubtotalCents = itemPriceCents * quantity;
 
     const safeMechanicDiscountCents =
       isMechanicCheckout && Number.isFinite(mechanicDiscountCents) && mechanicDiscountCents >= 0
@@ -201,9 +216,46 @@ export async function POST(req: Request) {
         : 0;
 
     const safeRegularItemPriceCents =
-      isMechanicCheckout && Number.isFinite(regularItemPriceCents) && regularItemPriceCents > 0
+      Number.isFinite(regularItemPriceCents) && regularItemPriceCents > 0
         ? regularItemPriceCents
         : itemPriceCents;
+
+    const safeReferralDiscountCents =
+      isCustomerCheckout && validatedReferral?.valid && validatedReferral.referral
+        ? Math.round(originalSubtotalCents * (validatedReferral.referral.customerDiscountPct / 100))
+        : 0;
+
+    const safeMechanicCreditCents =
+      isCustomerCheckout && validatedReferral?.valid && validatedReferral.referral
+        ? Math.round(originalSubtotalCents * 0.08)
+        : 0;
+
+    const subtotalCents = Math.max(
+      0,
+      originalSubtotalCents - safeMechanicDiscountCents - safeReferralDiscountCents
+    );
+
+    const taxPercentApplied =
+      subtotalCents + deliveryCents > 0
+        ? Number((((taxCents / (subtotalCents + deliveryCents)) * 100) || 0).toFixed(2))
+        : 13;
+
+    const totalDiscountCents = safeMechanicDiscountCents + safeReferralDiscountCents;
+
+    const referralCodeId =
+      isCustomerCheckout && validatedReferral?.valid && validatedReferral.referral
+        ? validatedReferral.referral.id
+        : null;
+
+    const referredByMechanicId =
+      isCustomerCheckout && validatedReferral?.valid && validatedReferral.referral
+        ? validatedReferral.referral.mechanic.id
+        : null;
+
+    const mechanicReferralCode =
+      isCustomerCheckout && validatedReferral?.valid && validatedReferral.referral
+        ? validatedReferral.referral.code
+        : null;
 
     let orderId = "";
     let orderNumber = "";
@@ -250,7 +302,7 @@ export async function POST(req: Request) {
           taxCents,
           shippingCents: deliveryCents,
           deliveryChargeCents: deliveryCents,
-          discountCents: safeMechanicDiscountCents,
+          discountCents: totalDiscountCents,
           totalCents,
           taxPercentApplied,
           billingEmail: email,
@@ -265,7 +317,12 @@ export async function POST(req: Request) {
           orderPlacedByType: isMechanicCheckout ? "mechanic" : "customer",
           mechanicId: isMechanicCheckout ? currentMechanic?.id ?? null : null,
           mechanicDiscountCents: safeMechanicDiscountCents,
-          customerNotes: isMechanicCheckout ? "Mechanic checkout" : null,
+          referralDiscountCents: safeReferralDiscountCents,
+          mechanicCreditCents: safeMechanicCreditCents,
+          referredByMechanicId,
+          referralCodeId,
+          mechanicReferralCode,
+          customerNotes: isMechanicCheckout ? "Mechanic checkout" : "Customer checkout",
         },
       });
 
@@ -285,11 +342,13 @@ export async function POST(req: Request) {
             engine: offerData.engine,
             year: offerData.year,
             quantity,
-            unitPriceCents: itemPriceCents,
+            unitPriceCents: Math.round(subtotalCents / quantity),
             lineTotalCents: subtotalCents,
             notes:
               isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
                 ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
+                : mechanicReferralCode
+                ? `Referral code applied: ${mechanicReferralCode}`
                 : null,
           },
         });
@@ -307,11 +366,13 @@ export async function POST(req: Request) {
             engine: offerData.engine,
             year: offerData.year,
             quantity,
-            unitPriceCents: itemPriceCents,
+            unitPriceCents: Math.round(subtotalCents / quantity),
             lineTotalCents: subtotalCents,
             notes:
               isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
                 ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
+                : mechanicReferralCode
+                ? `Referral code applied: ${mechanicReferralCode}`
                 : null,
           },
         });
@@ -327,7 +388,7 @@ export async function POST(req: Request) {
             subtotalCents,
             taxCents,
             shippingCents: deliveryCents,
-            discountCents: safeMechanicDiscountCents,
+            discountCents: totalDiscountCents,
             totalCents,
             paymentGateway,
             notes: isMechanicCheckout
@@ -348,7 +409,7 @@ export async function POST(req: Request) {
               title: offerData.title,
               description: offerData.description,
               quantity,
-              unitPriceCents: itemPriceCents,
+              unitPriceCents: Math.round(subtotalCents / quantity),
               lineTotalCents: subtotalCents,
             },
           });
@@ -359,7 +420,7 @@ export async function POST(req: Request) {
               title: offerData.title,
               description: offerData.description,
               quantity,
-              unitPriceCents: itemPriceCents,
+              unitPriceCents: Math.round(subtotalCents / quantity),
               lineTotalCents: subtotalCents,
             },
           });
@@ -380,7 +441,7 @@ export async function POST(req: Request) {
             subtotalCents,
             taxCents,
             shippingCents: deliveryCents,
-            discountCents: safeMechanicDiscountCents,
+            discountCents: totalDiscountCents,
             totalCents,
             paymentGateway,
             notes: isMechanicCheckout
@@ -392,7 +453,7 @@ export async function POST(req: Request) {
                   title: offerData.title,
                   description: offerData.description,
                   quantity,
-                  unitPriceCents: itemPriceCents,
+                  unitPriceCents: Math.round(subtotalCents / quantity),
                   lineTotalCents: subtotalCents,
                 },
               ],
@@ -419,7 +480,7 @@ export async function POST(req: Request) {
           taxCents,
           shippingCents: deliveryCents,
           deliveryChargeCents: deliveryCents,
-          discountCents: safeMechanicDiscountCents,
+          discountCents: totalDiscountCents,
           totalCents,
           taxPercentApplied,
           paymentGateway,
@@ -435,7 +496,12 @@ export async function POST(req: Request) {
           orderPlacedByType: isMechanicCheckout ? "mechanic" : "customer",
           mechanicId: isMechanicCheckout ? currentMechanic?.id ?? null : null,
           mechanicDiscountCents: safeMechanicDiscountCents,
-          customerNotes: isMechanicCheckout ? "Mechanic checkout" : null,
+          referralDiscountCents: safeReferralDiscountCents,
+          mechanicCreditCents: safeMechanicCreditCents,
+          referredByMechanicId,
+          referralCodeId,
+          mechanicReferralCode,
+          customerNotes: isMechanicCheckout ? "Mechanic checkout" : "Customer checkout",
           items: {
             create: [
               {
@@ -449,11 +515,13 @@ export async function POST(req: Request) {
                 engine: offerData.engine,
                 year: offerData.year,
                 quantity,
-                unitPriceCents: itemPriceCents,
+                unitPriceCents: Math.round(subtotalCents / quantity),
                 lineTotalCents: subtotalCents,
                 notes:
                   isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
                     ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
+                    : mechanicReferralCode
+                    ? `Referral code applied: ${mechanicReferralCode}`
                     : null,
               },
             ],
@@ -473,7 +541,7 @@ export async function POST(req: Request) {
           subtotalCents,
           taxCents,
           shippingCents: deliveryCents,
-          discountCents: safeMechanicDiscountCents,
+          discountCents: totalDiscountCents,
           totalCents,
           paymentGateway,
           notes: isMechanicCheckout
@@ -485,7 +553,7 @@ export async function POST(req: Request) {
                 title: offerData.title,
                 description: offerData.description,
                 quantity,
-                unitPriceCents: itemPriceCents,
+                unitPriceCents: Math.round(subtotalCents / quantity),
                 lineTotalCents: subtotalCents,
               },
             ],
@@ -507,6 +575,9 @@ export async function POST(req: Request) {
       mode,
       mechanicId: currentMechanic?.id ?? null,
       mechanicDiscountCents: safeMechanicDiscountCents,
+      referralDiscountCents: safeReferralDiscountCents,
+      mechanicCreditCents: safeMechanicCreditCents,
+      referredByMechanicId,
       resumed: Boolean(incomingOrderId),
     });
 

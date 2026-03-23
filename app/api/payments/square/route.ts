@@ -115,6 +115,52 @@ export async function POST(req: Request) {
       },
     });
 
+    console.log("payment referral update check:", {
+      referralCodeId: updatedOrder.referralCodeId,
+      referredByMechanicId: updatedOrder.referredByMechanicId,
+      mechanicCreditCents: updatedOrder.mechanicCreditCents,
+    });
+
+    if (updatedOrder.referredByMechanicId && updatedOrder.mechanicCreditCents > 0) {
+      await prisma.mechanic.update({
+        where: { id: updatedOrder.referredByMechanicId },
+        data: {
+          creditBalanceCents: {
+            increment: updatedOrder.mechanicCreditCents,
+          },
+        },
+      });
+    }
+
+    if (updatedOrder.referralCodeId) {
+      const referralCode = await prisma.mechanicReferralCode.findUnique({
+        where: { id: updatedOrder.referralCodeId },
+        select: {
+          id: true,
+          usedCount: true,
+          usageLimit: true,
+          isActive: true,
+        },
+      });
+
+      if (referralCode) {
+        const nextUsedCount = referralCode.usedCount + 1;
+
+        await prisma.mechanicReferralCode.update({
+          where: { id: referralCode.id },
+          data: {
+            usedCount: {
+              increment: 1,
+            },
+            isActive:
+              typeof referralCode.usageLimit === "number"
+                ? nextUsedCount < referralCode.usageLimit
+                : referralCode.isActive,
+          },
+        });
+      }
+    }
+
     const customerEmail = order.billingEmail || order.customer?.email || "";
     const customerName =
       [order.customer?.firstName, order.customer?.lastName]

@@ -78,6 +78,19 @@ type DraftCheckoutResponse = {
   message?: string;
 };
 
+type ReferralValidateResponse = {
+  success: boolean;
+  referral?: {
+    id: string;
+    mechanicId: string;
+    code: string;
+    mechanicShopName: string;
+    customerDiscountPct: number;
+    expiresAt: string | null;
+  };
+  message?: string;
+};
+
 export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -91,6 +104,7 @@ export default function CheckoutClient() {
   const isMechanicResume = mode === "mechanic-resume";
   const isMechanicDirect = mode === "mechanic";
   const isMechanicCheckout = isMechanicDirect || isMechanicResume;
+  const isCustomerCheckout = !isMechanicCheckout;
 
   const fallbackCustomerPrice = Number(sp.get("price") || 0);
 
@@ -108,6 +122,12 @@ export default function CheckoutClient() {
   const [province, setProvince] = useState("Ontario");
   const [postal, setPostal] = useState("");
   const [country, setCountry] = useState("Canada");
+
+  const [referralCodeInput, setReferralCodeInput] = useState("");
+  const [appliedReferral, setAppliedReferral] =
+    useState<ReferralValidateResponse["referral"] | null>(null);
+  const [applyingReferral, setApplyingReferral] = useState(false);
+  const [referralMessage, setReferralMessage] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [loadingPrefill, setLoadingPrefill] = useState(false);
@@ -262,33 +282,67 @@ export default function CheckoutClient() {
     };
   }, [isMechanicCheckout, offerId]);
 
-  const itemPrice = useMemo(() => {
-    if (isMechanicCheckout && mechanicPriceData) {
-      return mechanicPriceData.discountedPriceCents / 100;
-    }
-    return fallbackCustomerPrice;
-  }, [isMechanicCheckout, mechanicPriceData, fallbackCustomerPrice]);
-
-  const regularPrice = useMemo(() => {
+  const regularUnitPrice = useMemo(() => {
     if (isMechanicCheckout && mechanicPriceData) {
       return mechanicPriceData.originalPriceCents / 100;
     }
     return fallbackCustomerPrice;
   }, [isMechanicCheckout, mechanicPriceData, fallbackCustomerPrice]);
 
-  const mechanicDiscount = useMemo(() => {
+  const mechanicUnitPrice = useMemo(() => {
+    if (isMechanicCheckout && mechanicPriceData) {
+      return mechanicPriceData.discountedPriceCents / 100;
+    }
+    return fallbackCustomerPrice;
+  }, [isMechanicCheckout, mechanicPriceData, fallbackCustomerPrice]);
+
+  const mechanicUnitDiscount = useMemo(() => {
     if (isMechanicCheckout && mechanicPriceData) {
       return mechanicPriceData.discountCents / 100;
     }
     return 0;
   }, [isMechanicCheckout, mechanicPriceData]);
 
+  const customerReferralDiscountPct = appliedReferral?.customerDiscountPct || 0;
+
+  const customerBaseSubtotal = useMemo(() => {
+    return regularUnitPrice * qty;
+  }, [regularUnitPrice, qty]);
+
+  const customerReferralDiscountAmount = useMemo(() => {
+    if (!isCustomerCheckout || !appliedReferral) return 0;
+    return customerBaseSubtotal * (customerReferralDiscountPct / 100);
+  }, [isCustomerCheckout, appliedReferral, customerBaseSubtotal, customerReferralDiscountPct]);
+
+  const itemPrice = useMemo(() => {
+    if (isMechanicCheckout) {
+      return mechanicUnitPrice;
+    }
+    return regularUnitPrice;
+  }, [isMechanicCheckout, mechanicUnitPrice, regularUnitPrice]);
+
+  const subtotal = useMemo(() => {
+    if (isMechanicCheckout) {
+      return mechanicUnitPrice * qty;
+    }
+    return Math.max(0, customerBaseSubtotal - customerReferralDiscountAmount);
+  }, [
+    isMechanicCheckout,
+    mechanicUnitPrice,
+    qty,
+    customerBaseSubtotal,
+    customerReferralDiscountAmount,
+  ]);
+
+  const mechanicDiscount = useMemo(() => {
+    if (!isMechanicCheckout) return 0;
+    return mechanicUnitDiscount * qty;
+  }, [isMechanicCheckout, mechanicUnitDiscount, qty]);
+
   const delivery = useMemo(() => {
     if (!postal.trim()) return 0;
     return deliveryFromPostal(postal);
   }, [postal]);
-
-  const subtotal = itemPrice * qty;
 
   const hst = useMemo(() => {
     return (subtotal + delivery) * 0.13;
@@ -312,6 +366,51 @@ export default function CheckoutClient() {
     country.trim() &&
     itemPrice > 0 &&
     (!isMechanicCheckout || !!mechanicPriceData);
+
+  async function applyReferralCode() {
+    if (!referralCodeInput.trim()) return;
+
+    setApplyingReferral(true);
+    setReferralMessage("");
+    setError("");
+
+    try {
+      const res = await fetch("/api/referral/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: referralCodeInput.trim().toUpperCase(),
+        }),
+      });
+
+      const data: ReferralValidateResponse = await res.json();
+
+      if (!res.ok || !data.success || !data.referral) {
+        setAppliedReferral(null);
+        setReferralMessage(data.message || "Invalid referral code.");
+        return;
+      }
+
+      setAppliedReferral(data.referral);
+      setReferralCodeInput(data.referral.code);
+      setReferralMessage(
+        `Referral code applied. You saved ${data.referral.customerDiscountPct}% on item price only.`
+      );
+    } catch {
+      setAppliedReferral(null);
+      setReferralMessage("Unable to validate referral code.");
+    } finally {
+      setApplyingReferral(false);
+    }
+  }
+
+  function removeReferralCode() {
+    setAppliedReferral(null);
+    setReferralCodeInput("");
+    setReferralMessage("");
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -345,8 +444,12 @@ export default function CheckoutClient() {
           country,
           estimatedDeliveryText,
           mode: isMechanicCheckout ? "mechanic" : "customer",
-          regularItemPriceCents: Math.round(regularPrice * 100),
-          mechanicDiscountCents: Math.round(mechanicDiscount * qty * 100),
+          regularItemPriceCents: Math.round(regularUnitPrice * 100),
+          mechanicDiscountCents: Math.round(mechanicDiscount * 100),
+          referralCode: appliedReferral?.code || null,
+          referralCodeId: appliedReferral?.id || null,
+          referredByMechanicId: appliedReferral?.mechanicId || null,
+          referralDiscountCents: Math.round(customerReferralDiscountAmount * 100),
         }),
       });
 
@@ -498,6 +601,53 @@ export default function CheckoutClient() {
               </div>
             </div>
 
+            {isCustomerCheckout ? (
+              <div className="rounded-2xl border border-white/50 bg-white/60 p-4">
+                <div className="text-sm font-bold text-slate-700">
+                  Mechanic Referral Code
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={referralCodeInput}
+                    onChange={(e) => setReferralCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter referral code"
+                    className="flex-1 rounded-2xl border border-white/50 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyReferralCode}
+                    disabled={applyingReferral || !referralCodeInput.trim()}
+                    className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {applyingReferral ? "Applying..." : "Apply"}
+                  </button>
+                </div>
+
+                {appliedReferral ? (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                    <div>
+                      Applied: <strong>{appliedReferral.code}</strong> from{" "}
+                      <strong>{appliedReferral.mechanicShopName}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeReferralCode}
+                      className="rounded-full border border-emerald-300 px-3 py-1 text-xs font-bold"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+
+                {referralMessage ? (
+                  <div className="mt-3 text-sm font-medium text-slate-700">
+                    {referralMessage}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="text-xs font-medium text-slate-600">
               Delivery charge is calculated automatically from your postal code.
             </div>
@@ -517,12 +667,26 @@ export default function CheckoutClient() {
                 <>
                   <div className="flex justify-between">
                     <span>Regular item price</span>
-                    <span>{money(regularPrice * qty)}</span>
+                    <span>{money(regularUnitPrice * qty)}</span>
                   </div>
 
                   <div className="flex justify-between text-emerald-700">
                     <span>Mechanic discount</span>
-                    <span>- {money(mechanicDiscount * qty)}</span>
+                    <span>- {money(mechanicDiscount)}</span>
+                  </div>
+                </>
+              ) : null}
+
+              {isCustomerCheckout && appliedReferral ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Regular item price</span>
+                    <span>{money(customerBaseSubtotal)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Referral discount ({customerReferralDiscountPct}%)</span>
+                    <span>- {money(customerReferralDiscountAmount)}</span>
                   </div>
                 </>
               ) : null}
