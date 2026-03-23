@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import MechanicPriceBox from "@/components/MechanicPriceBox";
 
 type MechanicMeResponse = {
@@ -16,18 +17,9 @@ type MechanicMeResponse = {
   };
 };
 
-type PlaceOrderResponse = {
-  success: boolean;
-  message: string;
-  order?: {
-    id: string;
-    orderNumber: string;
-    totalCents: number;
-  };
-};
-
 type Props = {
   offerId: string;
+  partType: string;
   regularPriceCents: number;
   currency?: string;
   defaultQuantity?: number;
@@ -39,15 +31,16 @@ function money(cents: number, currency = "CAD") {
 
 export default function MechanicOfferActions({
   offerId,
+  partType,
   regularPriceCents,
   currency = "CAD",
   defaultQuantity = 1,
 }: Props) {
+  const router = useRouter();
+
   const [loadingMechanic, setLoadingMechanic] = useState(true);
   const [mechanic, setMechanic] = useState<MechanicMeResponse["mechanic"] | null>(null);
   const [quantity, setQuantity] = useState(defaultQuantity);
-  const [placingOrder, setPlacingOrder] = useState(false);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let ignore = false;
@@ -65,7 +58,7 @@ export default function MechanicOfferActions({
           setMechanic(data.mechanic);
         }
       } catch {
-        // silent for customer view
+        // silent for normal customer view
       } finally {
         if (!ignore) {
           setLoadingMechanic(false);
@@ -95,39 +88,17 @@ export default function MechanicOfferActions({
     };
   }, [mechanic, regularPriceCents, quantity]);
 
-  async function placeMechanicOrder() {
-    if (!mechanic || !offerId) return;
+  function goToMechanicCheckout() {
+    if (!offerId || !mechanic) return;
 
-    setPlacingOrder(true);
-    setMessage("");
+    const params = new URLSearchParams({
+      offerId,
+      qty: String(quantity),
+      mode: "mechanic",
+      partType,
+    });
 
-    try {
-      const res = await fetch("/api/mechanic/place-order", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          offerId,
-          quantity,
-        }),
-      });
-
-      const data: PlaceOrderResponse = await res.json();
-
-      if (!res.ok || !data.success) {
-        setMessage(data.message || "Failed to place mechanic order.");
-        return;
-      }
-
-      setMessage(
-        `Order created successfully. Order Number: ${data.order?.orderNumber || "-"}`
-      );
-    } catch {
-      setMessage("Failed to place mechanic order.");
-    } finally {
-      setPlacingOrder(false);
-    }
+    router.push(`/checkout?${params.toString()}`);
   }
 
   if (loadingMechanic || !mechanic || !offerId) {
@@ -171,11 +142,10 @@ export default function MechanicOfferActions({
       <div className="mt-5 flex flex-wrap gap-3">
         <button
           type="button"
-          onClick={placeMechanicOrder}
-          disabled={placingOrder}
-          className="rounded-full bg-slate-900 px-6 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60"
+          onClick={goToMechanicCheckout}
+          className="rounded-full bg-slate-900 px-6 py-3 text-sm font-extrabold text-white hover:bg-slate-800"
         >
-          {placingOrder ? "Placing Mechanic Order..." : "Place Mechanic Order"}
+          Proceed to Mechanic Checkout
         </button>
 
         <a
@@ -185,10 +155,6 @@ export default function MechanicOfferActions({
           Go to Dashboard
         </a>
       </div>
-
-      {message ? (
-        <p className="mt-4 text-sm font-semibold text-slate-700">{message}</p>
-      ) : null}
     </div>
   );
 }

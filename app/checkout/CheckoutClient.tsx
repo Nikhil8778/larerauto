@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function money(n: number) {
@@ -20,14 +20,84 @@ function deliveryFromPostal(postal: string) {
   return 30;
 }
 
+type MechanicCheckoutProfileResponse = {
+  success: boolean;
+  profile?: {
+    contactName: string;
+    email: string;
+    phone: string;
+    companyName: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+  };
+  message?: string;
+};
+
+type MechanicPricePreviewResponse = {
+  success: boolean;
+  pricing?: {
+    offerId: string;
+    currency: string;
+    originalPriceCents: number;
+    discountPct: number;
+    discountCents: number;
+    discountedPriceCents: number;
+  };
+  message?: string;
+};
+
+type DraftCheckoutResponse = {
+  success: boolean;
+  draft?: {
+    orderId: string;
+    orderNumber: string;
+    offerId: string;
+    partType: string;
+    quantity: number;
+    itemPriceCents: number;
+    subtotalCents: number;
+    deliveryCents: number;
+    taxCents: number;
+    totalCents: number;
+    fullName: string;
+    email: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+    estimatedDeliveryText: string;
+    mechanicDiscountCents: number;
+  };
+  message?: string;
+};
+
 export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const offerId = sp.get("offerId") || "";
-  const partType = sp.get("partType") || "Item";
-  const itemPrice = Number(sp.get("price") || 0);
-  const qty = Number(sp.get("qty") || 1);
+  const incomingOrderId = sp.get("orderId") || "";
+  const initialOfferId = sp.get("offerId") || "";
+  const initialPartType = sp.get("partType") || "Item";
+  const initialQty = Number(sp.get("qty") || 1);
+  const mode = sp.get("mode") || "";
+
+  const isMechanicResume = mode === "mechanic-resume";
+  const isMechanicDirect = mode === "mechanic";
+  const isMechanicCheckout = isMechanicDirect || isMechanicResume;
+
+  const fallbackCustomerPrice = Number(sp.get("price") || 0);
+
+  const [orderId, setOrderId] = useState(incomingOrderId);
+  const [offerId, setOfferId] = useState(initialOfferId);
+  const [partType, setPartType] = useState(initialPartType);
+  const [qty, setQty] = useState(initialQty);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,8 +108,180 @@ export default function CheckoutClient() {
   const [province, setProvince] = useState("Ontario");
   const [postal, setPostal] = useState("");
   const [country, setCountry] = useState("Canada");
+
   const [submitting, setSubmitting] = useState(false);
+  const [loadingPrefill, setLoadingPrefill] = useState(false);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(false);
   const [error, setError] = useState("");
+
+  const [mechanicPriceData, setMechanicPriceData] =
+    useState<MechanicPricePreviewResponse["pricing"] | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadDraftCheckout() {
+      if (!isMechanicResume || !incomingOrderId) return;
+
+      setLoadingDraft(true);
+      setError("");
+
+      try {
+        const res = await fetch(
+          `/api/checkout/draft/${encodeURIComponent(incomingOrderId)}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
+
+        const data: DraftCheckoutResponse = await res.json();
+
+        if (!ignore && (!res.ok || !data.success || !data.draft)) {
+          setError(data.message || "Unable to load draft checkout.");
+          return;
+        }
+
+        if (!ignore && data.draft) {
+          setOrderId(data.draft.orderId);
+          setOfferId(data.draft.offerId);
+          setPartType(data.draft.partType);
+          setQty(data.draft.quantity);
+
+          setFullName(data.draft.fullName || "");
+          setEmail(data.draft.email || "");
+          setPhone(data.draft.phone || "");
+          setAddressLine1(data.draft.addressLine1 || "");
+          setAddressLine2(data.draft.addressLine2 || "");
+          setCity(data.draft.city || "");
+          setProvince(data.draft.province || "Ontario");
+          setPostal(data.draft.postalCode || "");
+          setCountry(data.draft.country || "Canada");
+        }
+      } catch {
+        if (!ignore) {
+          setError("Unable to load draft checkout.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingDraft(false);
+        }
+      }
+    }
+
+    loadDraftCheckout();
+
+    return () => {
+      ignore = true;
+    };
+  }, [incomingOrderId, isMechanicResume]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadMechanicProfile() {
+      if (!isMechanicCheckout) return;
+
+      setLoadingPrefill(true);
+
+      try {
+        const res = await fetch("/api/mechanic/checkout-profile", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const data: MechanicCheckoutProfileResponse = await res.json();
+
+        if (!ignore && res.ok && data.success && data.profile) {
+          setFullName((prev) => prev || data.profile!.contactName || "");
+          setEmail((prev) => prev || data.profile!.email || "");
+          setPhone((prev) => prev || data.profile!.phone || "");
+          setAddressLine1((prev) => prev || data.profile!.addressLine1 || "");
+          setAddressLine2((prev) => prev || data.profile!.addressLine2 || "");
+          setCity((prev) => prev || data.profile!.city || "");
+          setProvince((prev) => prev || data.profile!.province || "Ontario");
+          setPostal((prev) => prev || data.profile!.postalCode || "");
+          setCountry((prev) => prev || data.profile!.country || "Canada");
+        }
+      } catch {
+        // no-op
+      } finally {
+        if (!ignore) {
+          setLoadingPrefill(false);
+        }
+      }
+    }
+
+    loadMechanicProfile();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isMechanicCheckout]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadMechanicPrice() {
+      if (!isMechanicCheckout || !offerId) return;
+
+      setLoadingPrice(true);
+
+      try {
+        const res = await fetch("/api/mechanic/price-preview", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ offerId }),
+        });
+
+        const data: MechanicPricePreviewResponse = await res.json();
+
+        if (!ignore && res.ok && data.success && data.pricing) {
+          setMechanicPriceData(data.pricing);
+        } else if (!ignore) {
+          setError(data.message || "Unable to load mechanic price preview.");
+        }
+      } catch {
+        if (!ignore) {
+          setError("Unable to load mechanic price preview.");
+        }
+      } finally {
+        if (!ignore) {
+          setLoadingPrice(false);
+        }
+      }
+    }
+
+    loadMechanicPrice();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isMechanicCheckout, offerId]);
+
+  const itemPrice = useMemo(() => {
+    if (isMechanicCheckout && mechanicPriceData) {
+      return mechanicPriceData.discountedPriceCents / 100;
+    }
+    return fallbackCustomerPrice;
+  }, [isMechanicCheckout, mechanicPriceData, fallbackCustomerPrice]);
+
+  const regularPrice = useMemo(() => {
+    if (isMechanicCheckout && mechanicPriceData) {
+      return mechanicPriceData.originalPriceCents / 100;
+    }
+    return fallbackCustomerPrice;
+  }, [isMechanicCheckout, mechanicPriceData, fallbackCustomerPrice]);
+
+  const mechanicDiscount = useMemo(() => {
+    if (isMechanicCheckout && mechanicPriceData) {
+      return mechanicPriceData.discountCents / 100;
+    }
+    return 0;
+  }, [isMechanicCheckout, mechanicPriceData]);
 
   const delivery = useMemo(() => {
     if (!postal.trim()) return 0;
@@ -68,7 +310,8 @@ export default function CheckoutClient() {
     province.trim() &&
     postal.trim() &&
     country.trim() &&
-    itemPrice > 0;
+    itemPrice > 0 &&
+    (!isMechanicCheckout || !!mechanicPriceData);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -83,6 +326,7 @@ export default function CheckoutClient() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          orderId: orderId || null,
           offerId: offerId || null,
           partType,
           quantity: qty,
@@ -100,6 +344,9 @@ export default function CheckoutClient() {
           postalCode: postal,
           country,
           estimatedDeliveryText,
+          mode: isMechanicCheckout ? "mechanic" : "customer",
+          regularItemPriceCents: Math.round(regularPrice * 100),
+          mechanicDiscountCents: Math.round(mechanicDiscount * qty * 100),
         }),
       });
 
@@ -128,13 +375,39 @@ export default function CheckoutClient() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-4xl font-black text-slate-900">Checkout</h1>
+      <h1 className="text-4xl font-black text-slate-900">
+        {isMechanicCheckout ? "Mechanic Checkout" : "Checkout"}
+      </h1>
+
+      {isMechanicCheckout ? (
+        <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+          Mechanic pricing is applied to item subtotal only. Delivery and HST are added separately.
+        </div>
+      ) : null}
+
+      {isMechanicResume ? (
+        <div className="mt-4 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">
+          You are resuming a draft mechanic checkout.
+        </div>
+      ) : null}
 
       <div className="mt-8 grid gap-6 md:grid-cols-2">
         <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
           <div className="text-xl font-extrabold text-slate-900">
             Delivery details
           </div>
+
+          {loadingDraft ? (
+            <div className="mt-4 text-sm font-medium text-slate-600">
+              Loading draft checkout...
+            </div>
+          ) : null}
+
+          {loadingPrefill ? (
+            <div className="mt-4 text-sm font-medium text-slate-600">
+              Loading saved mechanic details...
+            </div>
+          ) : null}
 
           <div className="mt-5 space-y-4">
             <div>
@@ -234,27 +507,47 @@ export default function CheckoutClient() {
         <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">
           <div className="text-xl font-extrabold text-slate-900">Order summary</div>
 
-          <div className="mt-4 space-y-2 text-sm font-semibold text-slate-800">
-            <div className="flex justify-between">
-              <span>Item ({partType})</span>
-              <span>{money(subtotal)}</span>
+          {loadingPrice ? (
+            <div className="mt-4 text-sm font-medium text-slate-600">
+              Loading price...
             </div>
+          ) : (
+            <div className="mt-4 space-y-2 text-sm font-semibold text-slate-800">
+              {isMechanicCheckout && mechanicPriceData ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Regular item price</span>
+                    <span>{money(regularPrice * qty)}</span>
+                  </div>
 
-            <div className="flex justify-between">
-              <span>Delivery</span>
-              <span>{delivery ? money(delivery) : "—"}</span>
-            </div>
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Mechanic discount</span>
+                    <span>- {money(mechanicDiscount * qty)}</span>
+                  </div>
+                </>
+              ) : null}
 
-            <div className="flex justify-between">
-              <span>HST (13%)</span>
-              <span>{delivery ? money(hst) : "—"}</span>
-            </div>
+              <div className="flex justify-between">
+                <span>Item ({partType})</span>
+                <span>{money(subtotal)}</span>
+              </div>
 
-            <div className="mt-3 flex justify-between border-t border-slate-900/10 pt-3 text-base font-black">
-              <span>Total</span>
-              <span>{delivery ? money(total) : "—"}</span>
+              <div className="flex justify-between">
+                <span>Delivery</span>
+                <span>{delivery ? money(delivery) : "—"}</span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>HST (13%)</span>
+                <span>{delivery ? money(hst) : "—"}</span>
+              </div>
+
+              <div className="mt-3 flex justify-between border-t border-slate-900/10 pt-3 text-base font-black">
+                <span>Total</span>
+                <span>{delivery ? money(total) : "—"}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {estimatedDeliveryText ? (
             <div className="mt-4 rounded-2xl bg-white/60 px-4 py-3 text-sm font-medium text-slate-700">
@@ -271,7 +564,7 @@ export default function CheckoutClient() {
           <button
             onClick={handleSubmit}
             className="mt-6 w-full rounded-full bg-slate-900 py-3 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-50"
-            disabled={!canSubmit || submitting}
+            disabled={!canSubmit || submitting || loadingPrice || loadingDraft}
           >
             {submitting ? "Preparing payment..." : "Confirm & Continue"}
           </button>

@@ -47,17 +47,11 @@ export async function POST(req: Request) {
     });
 
     if (!order) {
-      return NextResponse.json(
-        { error: "Order not found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Order not found." }, { status: 404 });
     }
 
     if (!invoice) {
-      return NextResponse.json(
-        { error: "Invoice not found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invoice not found." }, { status: 404 });
     }
 
     if (order.paymentStatus === "paid") {
@@ -105,7 +99,7 @@ export async function POST(req: Request) {
       where: { id: order.id },
       data: {
         paymentStatus: "paid",
-        status: "processing",
+        status: "confirmed",
         paidAt,
         paymentReference: payment.id,
       },
@@ -194,7 +188,7 @@ export async function POST(req: Request) {
             emailSentAt: new Date(),
           },
         });
-     } catch (emailError: any) {
+      } catch (emailError: any) {
         console.error("invoice email send error:", emailError);
         console.error(
           "invoice email send error detail:",

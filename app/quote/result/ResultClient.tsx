@@ -121,6 +121,7 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
 
           <MechanicOfferActions
             offerId={bestOffer.offerId}
+            partType={bestOffer.partType}
             regularPriceCents={bestOffer.itemPriceCents}
             currency={bestOffer.currency || "CAD"}
           />

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentMechanic } from "@/lib/mechanic-auth";
 
 function buildOrderNumber() {
   return `ORD-${Date.now()}`;
@@ -17,6 +18,8 @@ async function buildInvoiceNumber() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
+    const incomingOrderId = body.orderId ? String(body.orderId).trim() : null;
 
     const fullName = String(body.fullName ?? "").trim();
     const email = String(body.email ?? "").trim().toLowerCase();
@@ -39,7 +42,11 @@ export async function POST(req: Request) {
       ? String(body.estimatedDeliveryText).trim()
       : null;
 
-    // internal-only choice
+    const mode = String(body.mode ?? "customer").trim().toLowerCase();
+    const regularItemPriceCents = Number(body.regularItemPriceCents ?? itemPriceCents);
+    const mechanicDiscountCents = Number(body.mechanicDiscountCents ?? 0);
+
+    const isMechanicCheckout = mode === "mechanic";
     const paymentGateway = "square";
 
     if (
@@ -68,6 +75,19 @@ export async function POST(req: Request) {
       );
     }
 
+    let currentMechanic: Awaited<ReturnType<typeof getCurrentMechanic>> = null;
+
+    if (isMechanicCheckout) {
+      currentMechanic = await getCurrentMechanic();
+
+      if (!currentMechanic || !currentMechanic.isApproved || !currentMechanic.isActive) {
+        return NextResponse.json(
+          { error: "Mechanic session is not valid." },
+          { status: 401 }
+        );
+      }
+    }
+
     const [firstName, ...rest] = fullName.split(" ");
     const lastName = rest.join(" ").trim() || null;
 
@@ -83,6 +103,10 @@ export async function POST(req: Request) {
           lastName,
           email,
           phone,
+          companyName:
+            isMechanicCheckout && currentMechanic?.shopName
+              ? currentMechanic.shopName
+              : customer.companyName,
           addressLine1,
           addressLine2: addressLine2 || null,
           city,
@@ -98,6 +122,10 @@ export async function POST(req: Request) {
           lastName,
           email,
           phone,
+          companyName:
+            isMechanicCheckout && currentMechanic?.shopName
+              ? currentMechanic.shopName
+              : null,
           addressLine1,
           addressLine2: addressLine2 || null,
           city,
@@ -167,103 +195,333 @@ export async function POST(req: Request) {
         ? Number((((taxCents / (subtotalCents + deliveryCents)) * 100) || 0).toFixed(2))
         : 13;
 
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: buildOrderNumber(),
-        customerId: customer.id,
-        status: "confirmed",
-        paymentStatus: "pending",
-        fulfillmentStatus: "unfulfilled",
-        currency: "CAD",
-        subtotalCents,
-        taxCents,
-        shippingCents: deliveryCents,
-        deliveryChargeCents: deliveryCents,
-        discountCents: 0,
-        totalCents,
-        taxPercentApplied,
-        paymentGateway,
-        billingEmail: email,
-        addressLine1,
-        addressLine2: addressLine2 || null,
-        city,
-        province,
-        postalCode,
-        country,
-        estimatedDeliveryText,
-        sourceChannel: "website",
-        items: {
-          create: [
-            {
-              offerId,
+    const safeMechanicDiscountCents =
+      isMechanicCheckout && Number.isFinite(mechanicDiscountCents) && mechanicDiscountCents >= 0
+        ? mechanicDiscountCents
+        : 0;
+
+    const safeRegularItemPriceCents =
+      isMechanicCheckout && Number.isFinite(regularItemPriceCents) && regularItemPriceCents > 0
+        ? regularItemPriceCents
+        : itemPriceCents;
+
+    let orderId = "";
+    let orderNumber = "";
+    let invoiceId = "";
+    let invoiceNumber = "";
+
+    if (incomingOrderId) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { id: incomingOrderId },
+        include: {
+          items: true,
+          invoices: {
+            orderBy: { createdAt: "desc" },
+          },
+        },
+      });
+
+      if (!existingOrder) {
+        return NextResponse.json(
+          { error: "Draft order not found." },
+          { status: 404 }
+        );
+      }
+
+      if (existingOrder.status !== "draft" || existingOrder.paymentStatus !== "pending") {
+        return NextResponse.json(
+          { error: "Only draft unpaid orders can be resumed." },
+          { status: 400 }
+        );
+      }
+
+      if (isMechanicCheckout && existingOrder.mechanicId !== currentMechanic?.id) {
+        return NextResponse.json(
+          { error: "This draft order does not belong to the current mechanic." },
+          { status: 403 }
+        );
+      }
+
+      const updatedOrder = await prisma.order.update({
+        where: { id: existingOrder.id },
+        data: {
+          customerId: customer.id,
+          subtotalCents,
+          taxCents,
+          shippingCents: deliveryCents,
+          deliveryChargeCents: deliveryCents,
+          discountCents: safeMechanicDiscountCents,
+          totalCents,
+          taxPercentApplied,
+          billingEmail: email,
+          addressLine1,
+          addressLine2: addressLine2 || null,
+          city,
+          province,
+          postalCode,
+          country,
+          estimatedDeliveryText,
+          sourceChannel: "website",
+          orderPlacedByType: isMechanicCheckout ? "mechanic" : "customer",
+          mechanicId: isMechanicCheckout ? currentMechanic?.id ?? null : null,
+          mechanicDiscountCents: safeMechanicDiscountCents,
+          customerNotes: isMechanicCheckout ? "Mechanic checkout" : null,
+        },
+      });
+
+      const existingItem = existingOrder.items[0];
+
+      if (existingItem) {
+        await prisma.orderItem.update({
+          where: { id: existingItem.id },
+          data: {
+            offerId,
+            title: offerData.title,
+            description: offerData.description,
+            sku: offerData.sku,
+            partTypeName: offerData.partTypeName,
+            make: offerData.make,
+            model: offerData.model,
+            engine: offerData.engine,
+            year: offerData.year,
+            quantity,
+            unitPriceCents: itemPriceCents,
+            lineTotalCents: subtotalCents,
+            notes:
+              isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
+                ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
+                : null,
+          },
+        });
+      } else {
+        await prisma.orderItem.create({
+          data: {
+            orderId: existingOrder.id,
+            offerId,
+            title: offerData.title,
+            description: offerData.description,
+            sku: offerData.sku,
+            partTypeName: offerData.partTypeName,
+            make: offerData.make,
+            model: offerData.model,
+            engine: offerData.engine,
+            year: offerData.year,
+            quantity,
+            unitPriceCents: itemPriceCents,
+            lineTotalCents: subtotalCents,
+            notes:
+              isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
+                ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
+                : null,
+          },
+        });
+      }
+
+      const existingInvoice = existingOrder.invoices[0];
+
+      if (existingInvoice) {
+        const updatedInvoice = await prisma.invoice.update({
+          where: { id: existingInvoice.id },
+          data: {
+            customerId: customer.id,
+            subtotalCents,
+            taxCents,
+            shippingCents: deliveryCents,
+            discountCents: safeMechanicDiscountCents,
+            totalCents,
+            paymentGateway,
+            notes: isMechanicCheckout
+              ? `Mechanic checkout invoice for ${fullName}`
+              : `Checkout invoice for ${fullName}`,
+          },
+        });
+
+        const existingInvoiceItem = await prisma.invoiceItem.findFirst({
+          where: { invoiceId: existingInvoice.id },
+          orderBy: { createdAt: "asc" },
+        });
+
+        if (existingInvoiceItem) {
+          await prisma.invoiceItem.update({
+            where: { id: existingInvoiceItem.id },
+            data: {
               title: offerData.title,
               description: offerData.description,
-              sku: offerData.sku,
-              partTypeName: offerData.partTypeName,
-              make: offerData.make,
-              model: offerData.model,
-              engine: offerData.engine,
-              year: offerData.year,
               quantity,
               unitPriceCents: itemPriceCents,
               lineTotalCents: subtotalCents,
             },
-          ],
-        },
-      },
-      include: {
-        customer: true,
-        items: true,
-      },
-    });
-
-    const invoiceNumber = await buildInvoiceNumber();
-
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        customerId: customer.id,
-        orderId: order.id,
-        status: "draft",
-        currency: "CAD",
-        subtotalCents,
-        taxCents,
-        shippingCents: deliveryCents,
-        discountCents: 0,
-        totalCents,
-        paymentGateway,
-        notes: `Checkout invoice for ${fullName}`,
-        items: {
-          create: [
-            {
+          });
+        } else {
+          await prisma.invoiceItem.create({
+            data: {
+              invoiceId: existingInvoice.id,
               title: offerData.title,
               description: offerData.description,
               quantity,
               unitPriceCents: itemPriceCents,
               lineTotalCents: subtotalCents,
             },
-          ],
+          });
+        }
+
+        invoiceId = updatedInvoice.id;
+        invoiceNumber = updatedInvoice.invoiceNumber;
+      } else {
+        const newInvoiceNumber = await buildInvoiceNumber();
+
+        const createdInvoice = await prisma.invoice.create({
+          data: {
+            invoiceNumber: newInvoiceNumber,
+            customerId: customer.id,
+            orderId: updatedOrder.id,
+            status: "draft",
+            currency: "CAD",
+            subtotalCents,
+            taxCents,
+            shippingCents: deliveryCents,
+            discountCents: safeMechanicDiscountCents,
+            totalCents,
+            paymentGateway,
+            notes: isMechanicCheckout
+              ? `Mechanic checkout invoice for ${fullName}`
+              : `Checkout invoice for ${fullName}`,
+            items: {
+              create: [
+                {
+                  title: offerData.title,
+                  description: offerData.description,
+                  quantity,
+                  unitPriceCents: itemPriceCents,
+                  lineTotalCents: subtotalCents,
+                },
+              ],
+            },
+          },
+        });
+
+        invoiceId = createdInvoice.id;
+        invoiceNumber = createdInvoice.invoiceNumber;
+      }
+
+      orderId = updatedOrder.id;
+      orderNumber = updatedOrder.orderNumber;
+    } else {
+      const createdOrder = await prisma.order.create({
+        data: {
+          orderNumber: buildOrderNumber(),
+          customerId: customer.id,
+          status: "draft",
+          paymentStatus: "pending",
+          fulfillmentStatus: "unfulfilled",
+          currency: "CAD",
+          subtotalCents,
+          taxCents,
+          shippingCents: deliveryCents,
+          deliveryChargeCents: deliveryCents,
+          discountCents: safeMechanicDiscountCents,
+          totalCents,
+          taxPercentApplied,
+          paymentGateway,
+          billingEmail: email,
+          addressLine1,
+          addressLine2: addressLine2 || null,
+          city,
+          province,
+          postalCode,
+          country,
+          estimatedDeliveryText,
+          sourceChannel: "website",
+          orderPlacedByType: isMechanicCheckout ? "mechanic" : "customer",
+          mechanicId: isMechanicCheckout ? currentMechanic?.id ?? null : null,
+          mechanicDiscountCents: safeMechanicDiscountCents,
+          customerNotes: isMechanicCheckout ? "Mechanic checkout" : null,
+          items: {
+            create: [
+              {
+                offerId,
+                title: offerData.title,
+                description: offerData.description,
+                sku: offerData.sku,
+                partTypeName: offerData.partTypeName,
+                make: offerData.make,
+                model: offerData.model,
+                engine: offerData.engine,
+                year: offerData.year,
+                quantity,
+                unitPriceCents: itemPriceCents,
+                lineTotalCents: subtotalCents,
+                notes:
+                  isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
+                    ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
+                    : null,
+              },
+            ],
+          },
         },
-      },
+      });
+
+      const newInvoiceNumber = await buildInvoiceNumber();
+
+      const createdInvoice = await prisma.invoice.create({
+        data: {
+          invoiceNumber: newInvoiceNumber,
+          customerId: customer.id,
+          orderId: createdOrder.id,
+          status: "draft",
+          currency: "CAD",
+          subtotalCents,
+          taxCents,
+          shippingCents: deliveryCents,
+          discountCents: safeMechanicDiscountCents,
+          totalCents,
+          paymentGateway,
+          notes: isMechanicCheckout
+            ? `Mechanic checkout invoice for ${fullName}`
+            : `Checkout invoice for ${fullName}`,
+          items: {
+            create: [
+              {
+                title: offerData.title,
+                description: offerData.description,
+                quantity,
+                unitPriceCents: itemPriceCents,
+                lineTotalCents: subtotalCents,
+              },
+            ],
+          },
+        },
+      });
+
+      orderId = createdOrder.id;
+      orderNumber = createdOrder.orderNumber;
+      invoiceId = createdInvoice.id;
+      invoiceNumber = createdInvoice.invoiceNumber;
+    }
+
+    console.log("prepared checkout order:", {
+      orderId,
+      orderNumber,
+      invoiceId,
+      invoiceNumber,
+      mode,
+      mechanicId: currentMechanic?.id ?? null,
+      mechanicDiscountCents: safeMechanicDiscountCents,
+      resumed: Boolean(incomingOrderId),
     });
-    console.log("created checkout order:", {
-    orderId: order.id,
-    orderNumber: order.orderNumber,
-    invoiceId: invoice.id,
-    invoiceNumber: invoice.invoiceNumber,
-    });
+
     return NextResponse.json({
       ok: true,
       customerId: customer.id,
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      invoiceId: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      paymentStatus: order.paymentStatus,
+      orderId,
+      orderNumber,
+      invoiceId,
+      invoiceNumber,
+      paymentStatus: "pending",
     });
   } catch (error) {
-    console.error("checkout create error", error);
-    
+    console.error("checkout create/update error", error);
+
     return NextResponse.json(
       { error: "Unable to create checkout records." },
       { status: 500 }

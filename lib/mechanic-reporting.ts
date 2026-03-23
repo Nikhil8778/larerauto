@@ -17,17 +17,19 @@ export async function getMechanicDashboardStats(mechanicId: string) {
   const monthStart = daysAgo(30);
 
   const [
-    directOrdersWeek,
-    directOrdersMonth,
+    paidDirectOrdersWeek,
+    paidDirectOrdersMonth,
     referredOrdersWeek,
     referredOrdersMonth,
-    recentDirectOrders,
+    recentDraftDirectOrders,
+    recentPaidDirectOrders,
     recentReferredOrders,
   ] = await Promise.all([
     prisma.order.findMany({
       where: {
         mechanicId,
         orderPlacedByType: "mechanic",
+        paymentStatus: "paid",
         createdAt: { gte: weekStart },
       },
       orderBy: { createdAt: "desc" },
@@ -36,6 +38,7 @@ export async function getMechanicDashboardStats(mechanicId: string) {
       where: {
         mechanicId,
         orderPlacedByType: "mechanic",
+        paymentStatus: "paid",
         createdAt: { gte: monthStart },
       },
       orderBy: { createdAt: "desc" },
@@ -43,6 +46,7 @@ export async function getMechanicDashboardStats(mechanicId: string) {
     prisma.order.findMany({
       where: {
         referredByMechanicId: mechanicId,
+        paymentStatus: "paid",
         createdAt: { gte: weekStart },
       },
       orderBy: { createdAt: "desc" },
@@ -50,6 +54,7 @@ export async function getMechanicDashboardStats(mechanicId: string) {
     prisma.order.findMany({
       where: {
         referredByMechanicId: mechanicId,
+        paymentStatus: "paid",
         createdAt: { gte: monthStart },
       },
       orderBy: { createdAt: "desc" },
@@ -58,6 +63,17 @@ export async function getMechanicDashboardStats(mechanicId: string) {
       where: {
         mechanicId,
         orderPlacedByType: "mechanic",
+        status: "draft",
+        paymentStatus: "pending",
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.order.findMany({
+      where: {
+        mechanicId,
+        orderPlacedByType: "mechanic",
+        paymentStatus: "paid",
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -65,6 +81,7 @@ export async function getMechanicDashboardStats(mechanicId: string) {
     prisma.order.findMany({
       where: {
         referredByMechanicId: mechanicId,
+        paymentStatus: "paid",
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -79,11 +96,14 @@ export async function getMechanicDashboardStats(mechanicId: string) {
 
   return {
     direct: {
-      weekCount: directOrdersWeek.length,
-      weekSpendCents: sum(directOrdersWeek),
-      monthCount: directOrdersMonth.length,
-      monthSpendCents: sum(directOrdersMonth),
-      monthDiscountSavedCents: sumField(directOrdersMonth, "mechanicDiscountCents"),
+      weekCount: paidDirectOrdersWeek.length,
+      weekSpendCents: sum(paidDirectOrdersWeek),
+      monthCount: paidDirectOrdersMonth.length,
+      monthSpendCents: sum(paidDirectOrdersMonth),
+      monthDiscountSavedCents: sumField(
+        paidDirectOrdersMonth,
+        "mechanicDiscountCents"
+      ),
     },
     referral: {
       weekCount: referredOrdersWeek.length,
@@ -92,7 +112,8 @@ export async function getMechanicDashboardStats(mechanicId: string) {
       monthSalesCents: sum(referredOrdersMonth),
       monthCreditCents: sumField(referredOrdersMonth, "mechanicCreditCents"),
     },
-    recentDirectOrders,
+    recentDraftDirectOrders,
+    recentPaidDirectOrders,
     recentReferredOrders,
   };
 }

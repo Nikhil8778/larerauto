@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type OrderRow = {
@@ -8,6 +9,7 @@ type OrderRow = {
   totalCents: number;
   createdAt: string;
   status: string;
+  paymentStatus?: string;
 };
 
 type StatsPayload = {
@@ -25,7 +27,8 @@ type StatsPayload = {
     monthSalesCents: number;
     monthCreditCents: number;
   };
-  recentDirectOrders: OrderRow[];
+  recentDraftDirectOrders: OrderRow[];
+  recentPaidDirectOrders: OrderRow[];
   recentReferredOrders: OrderRow[];
 };
 
@@ -69,7 +72,7 @@ export default function DashboardStats() {
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border p-5">
-          <div className="text-sm text-gray-500">Direct Orders This Week</div>
+          <div className="text-sm text-gray-500">Paid Direct Orders This Week</div>
           <div className="mt-2 text-2xl font-bold">{stats.direct.weekCount}</div>
           <div className="mt-1 text-sm text-gray-600">
             Spend: {money(stats.direct.weekSpendCents)}
@@ -77,7 +80,7 @@ export default function DashboardStats() {
         </div>
 
         <div className="rounded-2xl border p-5">
-          <div className="text-sm text-gray-500">Direct Orders This Month</div>
+          <div className="text-sm text-gray-500">Paid Direct Orders This Month</div>
           <div className="mt-2 text-2xl font-bold">{stats.direct.monthCount}</div>
           <div className="mt-1 text-sm text-gray-600">
             Spend: {money(stats.direct.monthSpendCents)}
@@ -105,7 +108,7 @@ export default function DashboardStats() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border p-6">
-          <h2 className="mb-4 text-xl font-semibold">Recent Direct Orders</h2>
+          <h2 className="mb-4 text-xl font-semibold">Recent Draft Checkouts</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -114,23 +117,38 @@ export default function DashboardStats() {
                   <th className="py-3 pr-4">Status</th>
                   <th className="py-3 pr-4">Total</th>
                   <th className="py-3 pr-4">Date</th>
+                  <th className="py-3 pr-4">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.recentDirectOrders.map((order) => (
+                {stats.recentDraftDirectOrders.map((order) => (
                   <tr key={order.id} className="border-b">
                     <td className="py-3 pr-4">{order.orderNumber}</td>
-                    <td className="py-3 pr-4">{order.status}</td>
+                    <td className="py-3 pr-4">
+                      <span className="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-4 py-1.5 text-xs font-bold text-amber-800">
+                        Awaiting Payment
+                      </span>
+                    </td>
                     <td className="py-3 pr-4">{money(order.totalCents)}</td>
                     <td className="py-3 pr-4">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
+                    <td className="py-3 pr-4">
+                      <Link
+                        href={`/checkout?orderId=${encodeURIComponent(
+                          order.id
+                        )}&mode=mechanic-resume`}
+                        className="inline-flex whitespace-nowrap rounded-full bg-slate-900 px-4 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
+                      >
+                        Resume Checkout
+                      </Link>
+                    </td>
                   </tr>
                 ))}
-                {!stats.recentDirectOrders.length && (
+                {!stats.recentDraftDirectOrders.length && (
                   <tr>
-                    <td colSpan={4} className="py-4 text-gray-500">
-                      No direct orders yet.
+                    <td colSpan={5} className="py-4 text-gray-500">
+                      No unpaid draft checkouts.
                     </td>
                   </tr>
                 )}
@@ -140,7 +158,7 @@ export default function DashboardStats() {
         </div>
 
         <div className="rounded-2xl border p-6">
-          <h2 className="mb-4 text-xl font-semibold">Recent Referred Orders</h2>
+          <h2 className="mb-4 text-xl font-semibold">Recent Paid Direct Orders</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -152,26 +170,65 @@ export default function DashboardStats() {
                 </tr>
               </thead>
               <tbody>
-                {stats.recentReferredOrders.map((order) => (
+                {stats.recentPaidDirectOrders.map((order) => (
                   <tr key={order.id} className="border-b">
                     <td className="py-3 pr-4">{order.orderNumber}</td>
-                    <td className="py-3 pr-4">{order.status}</td>
+                    <td className="py-3 pr-4">
+                      <span className="inline-flex whitespace-nowrap rounded-full bg-emerald-100 px-4 py-1.5 text-xs font-bold text-emerald-800">
+                        Paid / Confirmed
+                      </span>
+                    </td>
                     <td className="py-3 pr-4">{money(order.totalCents)}</td>
                     <td className="py-3 pr-4">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
                 ))}
-                {!stats.recentReferredOrders.length && (
+                {!stats.recentPaidDirectOrders.length && (
                   <tr>
                     <td colSpan={4} className="py-4 text-gray-500">
-                      No referred orders yet.
+                      No paid direct orders yet.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border p-6">
+        <h2 className="mb-4 text-xl font-semibold">Recent Referred Orders</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-3 pr-4">Order</th>
+                <th className="py-3 pr-4">Status</th>
+                <th className="py-3 pr-4">Total</th>
+                <th className="py-3 pr-4">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.recentReferredOrders.map((order) => (
+                <tr key={order.id} className="border-b">
+                  <td className="py-3 pr-4">{order.orderNumber}</td>
+                  <td className="py-3 pr-4">{order.status}</td>
+                  <td className="py-3 pr-4">{money(order.totalCents)}</td>
+                  <td className="py-3 pr-4">
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+              {!stats.recentReferredOrders.length && (
+                <tr>
+                  <td colSpan={4} className="py-4 text-gray-500">
+                    No referred orders yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
