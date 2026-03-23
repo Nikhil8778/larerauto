@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import MechanicOfferActions from "@/components/MechanicOfferActions";
 
 type BestOffer = {
   offerId: string;
@@ -11,6 +12,8 @@ type BestOffer = {
   imageUrl: string;
   stockQty: number;
   itemPrice: number;
+  itemPriceCents: number;
+  currency?: string;
 };
 
 type ResultClientProps = {
@@ -115,6 +118,12 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
               address.
             </p>
           </div>
+
+          <MechanicOfferActions
+            offerId={bestOffer.offerId}
+            regularPriceCents={bestOffer.itemPriceCents}
+            currency={bestOffer.currency || "CAD"}
+          />
         </div>
 
         <div className="rounded-[28px] border border-white/40 bg-white/25 p-6 shadow-2xl backdrop-blur-xl">

@@ -59,14 +59,22 @@ export async function POST(request: NextRequest) {
     const unitPriceCents = pricing.discountedPriceCents;
     const lineTotalCents = unitPriceCents * quantity;
 
-    const customer = await prisma.customer.create({
-      data: {
-        firstName: mechanic.contactName,
-        companyName: mechanic.shopName,
+    let customer = await prisma.customer.findFirst({
+      where: {
         email: mechanic.email,
-        phone: mechanic.phone,
       },
     });
+
+    if (!customer) {
+      customer = await prisma.customer.create({
+        data: {
+          firstName: mechanic.contactName,
+          companyName: mechanic.shopName,
+          email: mechanic.email,
+          phone: mechanic.phone,
+        },
+      });
+    }
 
     const order = await prisma.order.create({
       data: {
@@ -77,6 +85,9 @@ export async function POST(request: NextRequest) {
         fulfillmentStatus: "unfulfilled",
         currency: offer.currency,
         subtotalCents: lineTotalCents,
+        taxCents: 0,
+        shippingCents: 0,
+        discountCents: pricing.discountCents * quantity,
         totalCents: lineTotalCents,
         orderPlacedByType: "mechanic",
         mechanicId: mechanic.id,
@@ -108,7 +119,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Mechanic order created successfully.",
-      order,
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        totalCents: order.totalCents,
+      },
     });
   } catch (error) {
     console.error("POST /api/mechanic/place-order error:", error);

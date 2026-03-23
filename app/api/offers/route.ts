@@ -21,10 +21,7 @@ export async function GET(req: Request) {
   const year = Number(yearStr);
 
   if (!Number.isFinite(year)) {
-    return NextResponse.json(
-      { error: "Invalid year." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid year." }, { status: 400 });
   }
 
   console.log("offers query:", {
@@ -103,10 +100,7 @@ export async function GET(req: Request) {
   );
 
   if (offers.length === 0) {
-    return NextResponse.json(
-      { error: "No offers found." },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "No offers found." }, { status: 404 });
   }
 
   const best = offers[0];
@@ -126,6 +120,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     quoteId: quote.id,
+    offerId: best.id,
     product: {
       title: best.part.title,
       description: best.part.description,

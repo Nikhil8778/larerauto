@@ -32,8 +32,7 @@ export default async function QuoteResultPage({
     vin,
   });
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
   let bestOffer = null;
 
@@ -45,14 +44,18 @@ export default async function QuoteResultPage({
     const data = await res.json();
 
     if (data && data.product) {
+      const itemPriceCents = data.pricing?.itemPriceCents ?? 0;
+
       bestOffer = {
-        offerId: data.quoteId,
+        offerId: data.offerId ?? data.quoteId ?? "",
         partType: data.product.partType,
         title: data.product.title,
         description: data.product.description ?? "",
         imageUrl: data.product.imageUrl ?? "",
         stockQty: data.availability?.qty ?? 0,
-        itemPrice: (data.pricing?.itemPriceCents ?? 0) / 100,
+        itemPrice: itemPriceCents / 100,
+        itemPriceCents,
+        currency: data.pricing?.currency ?? "CAD",
       };
     }
   } catch (error) {
