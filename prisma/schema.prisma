@@ -7,6 +7,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+}
+
+enum SocialConnectionType {
+  MANUAL
+  OAUTH
+}
+
+enum SocialPostStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  FAILED
+}
+
+enum SocialPostType {
+  IMAGE
+  VIDEO
+  TEXT
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
 model Make {
   id        String    @id @default(cuid())
   name      String    @unique
@@ -106,13 +137,13 @@ model Offer {
   vehicleId String
   partId    String
 
-  sourceId       String // internal only: "manual", "distA", "distB"
+  sourceId       String
   sourceSku      String?
   inventoryQty   Int
   costPriceCents Int
 
-  referencePriceCents Int? // final chosen vendor reference price
-  sellPriceCents      Int // customer-facing item price
+  referencePriceCents Int?
+  sellPriceCents      Int
 
   amazonPriceCents   Int?
   aPremiumPriceCents Int?
@@ -120,7 +151,7 @@ model Offer {
   amazonUrl   String?
   aPremiumUrl String?
 
-  syncStatus      String? // "success", "failed", "partial"
+  syncStatus      String?
   syncError       String?
   lastPriceSyncAt DateTime?
 
@@ -142,7 +173,7 @@ model Offer {
 model VendorCandidate {
   id         String   @id @default(cuid())
   offerId    String
-  vendor     String // "amazon" | "apremium"
+  vendor     String
   title      String
   productUrl String
   priceCents Int?
@@ -186,12 +217,12 @@ model AdminUser {
 }
 
 model AdminSession {
-  id         String    @id @default(cuid())
-  token      String    @unique
+  id          String    @id @default(cuid())
+  token       String    @unique
   adminUserId String
-  expiresAt  DateTime
-  createdAt  DateTime  @default(now())
-  adminUser  AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
 
   @@index([adminUserId])
   @@index([expiresAt])
@@ -227,53 +258,53 @@ model Customer {
 }
 
 model Order {
-  id                   String       @id @default(cuid())
-  orderNumber          String       @unique
-  customerId           String
-  quoteId              String?
-  status               String       @default("draft") // draft | confirmed | processing | shipped | completed | cancelled
-  paymentStatus        String       @default("pending") // pending | partial | paid | refunded
-  fulfillmentStatus    String       @default("unfulfilled") // unfulfilled | processing | ready | shipped | delivered
-  currency             String       @default("CAD")
-  subtotalCents        Int          @default(0)
-  taxCents             Int          @default(0)
-  shippingCents        Int          @default(0)
-  discountCents        Int          @default(0)
-  totalCents           Int          @default(0)
-  internalNotes        String?
-  customerNotes        String?
-  sourceChannel        String?      // website | whatsapp | instagram | facebook | kijiji | karot | manual
-  deliveryChargeCents  Int          @default(0)
-  taxPercentApplied    Float        @default(13)
-  paymentGateway       String?      // square | stripe
-  paymentReference     String?
-  paidAt               DateTime?
-  billingEmail         String?
-  addressLine1         String?
-  addressLine2         String?
-  city                 String?
-  province             String?
-  postalCode           String?
-  country              String?      @default("Canada")
+  id                    String       @id @default(cuid())
+  orderNumber           String       @unique
+  customerId            String
+  quoteId               String?
+  status                String       @default("draft")
+  paymentStatus         String       @default("pending")
+  fulfillmentStatus     String       @default("unfulfilled")
+  currency              String       @default("CAD")
+  subtotalCents         Int          @default(0)
+  taxCents              Int          @default(0)
+  shippingCents         Int          @default(0)
+  discountCents         Int          @default(0)
+  totalCents            Int          @default(0)
+  internalNotes         String?
+  customerNotes         String?
+  sourceChannel         String?
+  deliveryChargeCents   Int          @default(0)
+  taxPercentApplied     Float        @default(13)
+  paymentGateway        String?
+  paymentReference      String?
+  paidAt                DateTime?
+  billingEmail          String?
+  addressLine1          String?
+  addressLine2          String?
+  city                  String?
+  province              String?
+  postalCode            String?
+  country               String?      @default("Canada")
   estimatedDeliveryText String?
-  mechanicId             String?
-  mechanic               Mechanic?    @relation("MechanicDirectOrders", fields: [mechanicId], references: [id], onDelete: SetNull)
-  mechanicReferralCode   String?
-  orderPlacedByType        String?      // customer | mechanic | admin
-  mechanicDiscountCents    Int          @default(0)
-  referralCodeId           String?
-  referredByMechanicId     String?
-  mechanicCreditCents      Int          @default(0)
-  referredByMechanic       Mechanic?    @relation("ReferredOrders", fields: [referredByMechanicId], references: [id], onDelete: SetNull)
-  referralCode            MechanicReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
-  referralDiscountCents  Int        @default(0)
-  customerAccessToken  String       @unique @default(cuid())
+  mechanicId            String?
+  mechanic              Mechanic?    @relation("MechanicDirectOrders", fields: [mechanicId], references: [id], onDelete: SetNull)
+  mechanicReferralCode  String?
+  orderPlacedByType     String?
+  mechanicDiscountCents Int          @default(0)
+  referralCodeId        String?
+  referredByMechanicId  String?
+  mechanicCreditCents   Int          @default(0)
+  referredByMechanic    Mechanic?    @relation("ReferredOrders", fields: [referredByMechanicId], references: [id], onDelete: SetNull)
+  referralCode          MechanicReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
+  referralDiscountCents Int          @default(0)
+  customerAccessToken   String       @unique @default(cuid())
 
-  items                OrderItem[]
-  invoices             Invoice[]
-  customer             Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  items                 OrderItem[]
+  invoices              Invoice[]
+  customer              Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   @@index([customerId])
   @@index([status])
@@ -284,31 +315,31 @@ model Order {
   @@index([paymentReference])
   @@index([createdAt])
   @@index([mechanicId])
-  @@index([mechanicReferralCode]) 
+  @@index([mechanicReferralCode])
   @@index([orderPlacedByType])
   @@index([referralCodeId])
   @@index([referredByMechanicId])
 }
 
 model OrderItem {
-  id               String    @id @default(cuid())
-  orderId          String
-  offerId          String?
-  title            String
-  description      String?
-  sku              String?
-  partTypeName     String?
-  make             String?
-  model            String?
-  engine           String?
-  year             Int?
-  quantity         Int       @default(1)
-  unitPriceCents   Int
-  lineTotalCents   Int
-  notes            String?
-  order            Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  orderId        String
+  offerId        String?
+  title          String
+  description    String?
+  sku            String?
+  partTypeName   String?
+  make           String?
+  model          String?
+  engine         String?
+  year           Int?
+  quantity       Int       @default(1)
+  unitPriceCents Int
+  lineTotalCents Int
+  notes          String?
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([orderId])
   @@index([offerId])
@@ -316,33 +347,32 @@ model OrderItem {
 }
 
 model Invoice {
-  id                 String        @id @default(cuid())
-  invoiceNumber      String        @unique
-  customerId         String
-  orderId            String?
-  status             String        @default("draft") // draft | sent | paid | overdue | void
-  currency           String        @default("CAD")
-  subtotalCents      Int           @default(0)
-  taxCents           Int           @default(0)
-  shippingCents      Int           @default(0)
-  discountCents      Int           @default(0)
-  totalCents         Int           @default(0)
-  dueDate            DateTime?
-  paidAt             DateTime?
-  notes              String?
-  pdfUrl             String?
-  paymentGateway     String?
-  paymentReference   String?
-  emailSentAt        DateTime?
-  transactionId      String?
+  id                  String        @id @default(cuid())
+  invoiceNumber       String        @unique
+  customerId          String
+  orderId             String?
+  status              String        @default("draft")
+  currency            String        @default("CAD")
+  subtotalCents       Int           @default(0)
+  taxCents            Int           @default(0)
+  shippingCents       Int           @default(0)
+  discountCents       Int           @default(0)
+  totalCents          Int           @default(0)
+  dueDate             DateTime?
+  paidAt              DateTime?
+  notes               String?
+  pdfUrl              String?
+  paymentGateway      String?
+  paymentReference    String?
+  emailSentAt         DateTime?
+  transactionId       String?
+  customerAccessToken String        @unique @default(cuid())
 
-  customerAccessToken String       @unique @default(cuid())
-
-  customer           Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  order              Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  items              InvoiceItem[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  customer            Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order               Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  items               InvoiceItem[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([customerId])
   @@index([orderId])
@@ -354,16 +384,16 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id               String    @id @default(cuid())
-  invoiceId        String
-  title            String
-  description      String?
-  quantity         Int       @default(1)
-  unitPriceCents   Int
-  lineTotalCents   Int
-  invoice          Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  invoiceId      String
+  title          String
+  description    String?
+  quantity       Int       @default(1)
+  unitPriceCents Int
+  lineTotalCents Int
+  invoice        Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([invoiceId])
 }
@@ -371,9 +401,9 @@ model InvoiceItem {
 model Conversation {
   id               String                 @id @default(cuid())
   customerId       String?
-  channel          String                 // whatsapp | instagram | facebook | website
+  channel          String
   externalThreadId String?
-  status           String                 @default("open") // open | pending | closed
+  status           String                 @default("open")
   assignedTo       String?
   lastMessageAt    DateTime?
   notes            String?
@@ -392,10 +422,10 @@ model Conversation {
 model ConversationMessage {
   id               String        @id @default(cuid())
   conversationId   String
-  direction        String        // inbound | outbound
+  direction        String
   senderName       String?
   senderHandle     String?
-  messageType      String        @default("text") // text | image | file | system
+  messageType      String        @default("text")
   content          String?
   automationRuleId String?
   sentAt           DateTime?
@@ -408,16 +438,16 @@ model ConversationMessage {
 }
 
 model AutoReplyRule {
-  id               String    @id @default(cuid())
-  name             String
-  channel          String    // whatsapp | instagram | facebook | website | all
-  triggerType      String    // welcome | after_hours | keyword | invoice_reminder | quote_request
-  triggerValue     String?
-  replyTemplate    String
-  isActive         Boolean   @default(true)
-  sortOrder        Int       @default(0)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  channel       String
+  triggerType   String
+  triggerValue  String?
+  replyTemplate String
+  isActive      Boolean   @default(true)
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([channel])
   @@index([triggerType])
@@ -425,44 +455,44 @@ model AutoReplyRule {
 }
 
 model BusinessSetting {
-  id                    String    @id @default(cuid())
-  businessName          String     @default("Lare Auto")
-  businessEmail         String?
-  businessPhone         String?
-  whatsappNumber        String?
-  instagramHandle       String?
-  facebookPage          String?
-  invoicePrefix         String     @default("INV")
-  quotePrefix           String     @default("QTE")
-  defaultTaxPercent     Float      @default(13)
-  currency              String     @default("CAD")
-  afterHoursReply       String?
-  welcomeReply          String?
-  invoiceReminderReply  String?
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  id                   String    @id @default(cuid())
+  businessName         String    @default("Lare Auto")
+  businessEmail        String?
+  businessPhone        String?
+  whatsappNumber       String?
+  instagramHandle      String?
+  facebookPage         String?
+  invoicePrefix        String    @default("INV")
+  quotePrefix          String    @default("QTE")
+  defaultTaxPercent    Float     @default(13)
+  currency             String    @default("CAD")
+  afterHoursReply      String?
+  welcomeReply         String?
+  invoiceReminderReply String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Mechanic {
-  id               String                 @id @default(cuid())
-  shopName         String
-  contactName      String
-  email            String                 @unique
-  phone            String?
-  passwordHash     String
-  isApproved       Boolean                @default(false)
-  isActive         Boolean                @default(true)
-  tradeDiscountPct Float                  @default(10)
-  referralDiscountPct Float               @default(2)
-  creditBalanceCents Int                  @default(0)
-  notes            String?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id                  String                 @id @default(cuid())
+  shopName            String
+  contactName         String
+  email               String                 @unique
+  phone               String?
+  passwordHash        String
+  isApproved          Boolean                @default(false)
+  isActive            Boolean                @default(true)
+  tradeDiscountPct    Float                  @default(10)
+  referralDiscountPct Float                  @default(2)
+  creditBalanceCents  Int                    @default(0)
+  notes               String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
-  sessions         MechanicSession[]
-  referralCodes    MechanicReferralCode[]
-  directOrders     Order[]                @relation("MechanicDirectOrders")
-  referredOrders   Order[]                @relation("ReferredOrders")
+  sessions            MechanicSession[]
+  referralCodes       MechanicReferralCode[]
+  directOrders        Order[]                @relation("MechanicDirectOrders")
+  referredOrders      Order[]                @relation("ReferredOrders")
 
   @@index([email])
   @@index([shopName])
@@ -502,4 +532,76 @@ model MechanicReferralCode {
   @@index([code])
   @@index([isActive])
   @@index([expiresAt])
+}
+
+model SocialChannel {
+  id               String               @id @default(cuid())
+  platform         SocialPlatform
+  displayName      String
+  handle           String?
+  profileUrl       String
+  profileImageUrl  String?
+  isActive         Boolean              @default(true)
+  connectionType   SocialConnectionType @default(MANUAL)
+  externalAccountId String?
+  accessTokenEnc   String?
+  refreshTokenEnc  String?
+  tokenExpiresAt   DateTime?
+  notes            String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  posts           SocialPost[]
+  
+  @@unique([platform, profileUrl])
+  @@index([platform])
+  @@index([isActive])
+}
+
+model SocialPost {
+  id             String           @id @default(cuid())
+  channelId      String
+  campaignId     String?
+  title          String
+  caption        String
+  mediaUrl       String?
+  targetUrl      String?
+  postType       SocialPostType   @default(IMAGE)
+  status         SocialPostStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  publishedAt    DateTime?
+  externalPostId String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  channel        SocialChannel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  campaign       Campaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([channelId])
+  @@index([campaignId])
+  @@index([status])
+  @@index([postType])
+  @@index([scheduledAt])
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  objective   String?
+  platform    String?
+  audience    String?
+  landingUrl  String
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  status      CampaignStatus @default(DRAFT)
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  posts       SocialPost[]
+
+  @@index([status])
+  @@index([platform])
 }

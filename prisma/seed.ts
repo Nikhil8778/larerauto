@@ -1,4 +1,8 @@
-import { PrismaClient } from "@prisma/client";
+import {
+  PrismaClient,
+  SocialPlatform,
+  SocialConnectionType,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { vehicles } from "../data/vehicles";
 
@@ -286,10 +290,59 @@ function buildSourceSku(params: {
     .toUpperCase();
 }
 
-async function main() {
-  console.log("Seeding vehicle fitment data + parts + offers + admin user...");
+async function seedSocialChannels() {
+  const channels = [
+    {
+      platform: SocialPlatform.FACEBOOK,
+      displayName: "LARE Auto",
+      handle: "LARE Auto",
+      profileUrl: "https://www.facebook.com/",
+      profileImageUrl: null,
+      isActive: true,
+      connectionType: SocialConnectionType.MANUAL,
+      notes: "Facebook Page manually connected in admin",
+    },
+    {
+      platform: SocialPlatform.INSTAGRAM,
+      displayName: "LARE Auto",
+      handle: "@lareauto",
+      profileUrl: "https://www.instagram.com/lareauto/",
+      profileImageUrl: null,
+      isActive: true,
+      connectionType: SocialConnectionType.MANUAL,
+      notes: "Instagram Business account manually connected in admin",
+    },
+    {
+      platform: SocialPlatform.TIKTOK,
+      displayName: "LARE Auto",
+      handle: "@lareauto",
+      profileUrl: "https://www.tiktok.com/@lareauto",
+      profileImageUrl: null,
+      isActive: true,
+      connectionType: SocialConnectionType.MANUAL,
+      notes: "TikTok Business account manually connected in admin",
+    },
+  ];
 
-  // Wipe in safe order for dev
+  for (const channel of channels) {
+    const existing = await prisma.socialChannel.findFirst({
+      where: {
+        platform: channel.platform,
+        profileUrl: channel.profileUrl,
+      },
+    });
+
+    if (!existing) {
+      await prisma.socialChannel.create({
+        data: channel,
+      });
+    }
+  }
+}
+
+async function main() {
+  console.log("Seeding vehicle fitment data + parts + offers + admin user + social channels...");
+
   await prisma.vendorCandidate.deleteMany();
   await prisma.adminSession.deleteMany();
   await prisma.quote.deleteMany();
@@ -302,8 +355,8 @@ async function main() {
   await prisma.model.deleteMany();
   await prisma.make.deleteMany();
   await prisma.adminUser.deleteMany();
+  await prisma.socialChannel.deleteMany();
 
-  // 1) Part types
   await prisma.partType.createMany({
     data: DEFAULT_PART_TYPES.map((name) => ({ name })),
     skipDuplicates: true,
@@ -314,7 +367,6 @@ async function main() {
   });
   const partTypeMap = new Map(allPartTypes.map((pt) => [pt.name, pt.id]));
 
-  // 2) Makes
   const makeNames = [...new Set((vehicles as VehicleSeedMake[]).map((m) => m.make))];
   await prisma.make.createMany({
     data: makeNames.map((name) => ({ name })),
@@ -326,7 +378,6 @@ async function main() {
   });
   const makeMap = new Map(allMakes.map((m) => [m.name, m.id]));
 
-  // 3) Models
   const modelRows: { name: string; makeId: string }[] = [];
   for (const makeData of vehicles as VehicleSeedMake[]) {
     const makeId = makeMap.get(makeData.make);
@@ -352,7 +403,6 @@ async function main() {
     allModels.map((m) => [`${m.makeId}::${m.name}`, m.id])
   );
 
-  // 4) Engines
   const engineRows: { name: string; modelId: string }[] = [];
   for (const makeData of vehicles as VehicleSeedMake[]) {
     const makeId = makeMap.get(makeData.make);
@@ -383,7 +433,6 @@ async function main() {
     allEngines.map((e) => [`${e.modelId}::${e.name}`, e.id])
   );
 
-  // 5) Vehicles
   const vehicleRows: {
     makeId: string;
     modelId: string;
@@ -455,7 +504,6 @@ async function main() {
     ])
   );
 
-  // 6) VehiclePartType
   const vehiclePartTypeRows: { vehicleId: string; partTypeId: string }[] = [];
 
   for (const makeData of vehicles as VehicleSeedMake[]) {
@@ -497,7 +545,6 @@ async function main() {
     });
   }
 
-  // 7) Parts: one demo part per part type
   const partRows = DEFAULT_PART_TYPES.map((partTypeName) => {
     const partTypeId = partTypeMap.get(partTypeName);
     if (!partTypeId) {
@@ -534,7 +581,6 @@ async function main() {
   });
   const partMap = new Map(allParts.map((p) => [p.partType.name, p]));
 
-  // 8) Offers: one demo offer per vehicle x part type
   const offerRows: {
     vehicleId: string;
     partId: string;
@@ -602,7 +648,6 @@ async function main() {
     });
   }
 
-  // 9) Admin user
   const passwordHash = await bcrypt.hash("Admin@12345", 10);
 
   await prisma.adminUser.create({
@@ -614,6 +659,8 @@ async function main() {
     },
   });
 
+  await seedSocialChannels();
+
   console.log("✅ Seed complete");
   console.log("Makes:", makeNames.length);
   console.log("Models rows:", modelRows.length);
@@ -623,6 +670,7 @@ async function main() {
   console.log("Parts created:", partRows.length);
   console.log("Offers created:", offerRows.length);
   console.log("Admin user created: admin@lareauto.ca");
+  console.log("Social channels seeded: Facebook, Instagram, TikTok");
 }
 
 main()

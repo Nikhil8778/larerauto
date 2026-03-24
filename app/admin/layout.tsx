@@ -16,6 +16,15 @@ const navGroups = [
     ],
   },
   {
+    title: "Marketing",
+    items: [
+      { href: "/admin/marketing", label: "Dashboard" },
+      { href: "/admin/marketing/channels", label: "Channels" },
+      { href: "/admin/marketing/posts", label: "Posts" },
+      { href: "/admin/marketing/campaigns", label: "Campaigns" },
+    ],
+  },
+  {
     title: "Communication",
     items: [
       { href: "/admin/messages", label: "Messages" },
@@ -58,7 +67,7 @@ export default async function AdminLayout({
                 Lare Auto Admin
               </div>
               <div className="mt-2 text-sm text-slate-400">
-                Sales, operations, automation and catalog control.
+                Sales, operations, automation, marketing and catalog control.
               </div>
 
               <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
