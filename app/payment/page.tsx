@@ -36,6 +36,35 @@ function moneyFromCents(cents: number) {
   });
 }
 
+async function waitForSquare(maxMs = 10000, stepMs = 150): Promise<void> {
+  const start = Date.now();
+
+  while (Date.now() - start < maxMs) {
+    if (window.Square) return;
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+
+  throw new Error("Square SDK did not become ready in time.");
+}
+
+async function ensureSquareSdkLoaded(): Promise<void> {
+  if (window.Square) return;
+
+  const src = "https://sandbox.web.squarecdn.com/v1/square.js";
+  const existing = document.querySelector(
+    `script[src="${src}"]`
+  ) as HTMLScriptElement | null;
+
+  if (!existing) {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    document.body.appendChild(script);
+  }
+
+  await waitForSquare();
+}
+
 function PaymentInner() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -47,28 +76,35 @@ function PaymentInner() {
 
   const [prepared, setPrepared] = useState<PreparedState | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attachingCard, setAttachingCard] = useState(false);
   const [error, setError] = useState("");
   const [sdkReady, setSdkReady] = useState(false);
+  const [cardReady, setCardReady] = useState(false);
 
   const cardRef = useRef<any>(null);
   const cardAttachedRef = useRef(false);
 
   useEffect(() => {
-    const existing = document.querySelector(
-      'script[src="https://sandbox.web.squarecdn.com/v1/square.js"]'
-    ) as HTMLScriptElement | null;
+    let cancelled = false;
 
-    if (existing) {
-      setSdkReady(true);
-      return;
+    async function initSdk() {
+      try {
+        await ensureSquareSdkLoaded();
+        if (!cancelled) {
+          setSdkReady(true);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || "Unable to load secure payment form.");
+        }
+      }
     }
 
-    const script = document.createElement("script");
-    script.src = "https://sandbox.web.squarecdn.com/v1/square.js";
-    script.async = true;
-    script.onload = () => setSdkReady(true);
-    script.onerror = () => setError("Unable to load secure payment form.");
-    document.body.appendChild(script);
+    initSdk();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function preparePayment() {
@@ -84,6 +120,8 @@ function PaymentInner() {
         setLoading(false);
         return;
       }
+
+      await ensureSquareSdkLoaded();
 
       const res = await fetch(`/api/orders/${orderId}/summary`, {
         method: "GET",
@@ -103,20 +141,6 @@ function PaymentInner() {
         amountCents: data.totalCents,
       });
 
-      if (!window.Square) {
-        setError("Secure payment library is not available.");
-        setLoading(false);
-        return;
-      }
-
-      if (!cardAttachedRef.current) {
-        const payments = await window.Square.payments(appId, locationId);
-        const card = await payments.card();
-        await card.attach("#square-card-container");
-        cardRef.current = card;
-        cardAttachedRef.current = true;
-      }
-
       setLoading(false);
     } catch (err) {
       console.error("prepare payment error:", err);
@@ -125,8 +149,70 @@ function PaymentInner() {
     }
   }
 
+  useEffect(() => {
+    if (!sdkReady || !orderId || !invoiceId || prepared || loading) return;
+    preparePayment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdkReady, orderId, invoiceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function attachCard() {
+      if (!prepared || !sdkReady || cardAttachedRef.current) return;
+
+      const container = document.querySelector("#square-card-container");
+      if (!container) return;
+
+      setAttachingCard(true);
+      setError("");
+
+      try {
+        await ensureSquareSdkLoaded();
+
+        if (!window.Square) {
+          throw new Error("Secure payment library is not available yet.");
+        }
+
+        const payments = await window.Square.payments(
+          prepared.appId,
+          prepared.locationId
+        );
+        const card = await payments.card();
+
+        if (cancelled) return;
+
+        await card.attach("#square-card-container");
+
+        if (cancelled) return;
+
+        cardRef.current = card;
+        cardAttachedRef.current = true;
+        setCardReady(true);
+      } catch (err) {
+        console.error("attach card error:", err);
+        if (!cancelled) {
+          setError("Something went wrong while preparing payment.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAttachingCard(false);
+        }
+      }
+    }
+
+    attachCard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [prepared, sdkReady]);
+
   async function completePayment() {
-    if (!cardRef.current || !prepared) return;
+    if (!cardRef.current || !prepared || !cardReady) {
+      setError("Payment form is still loading. Please wait a moment and try again.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -167,7 +253,6 @@ function PaymentInner() {
         return;
       }
 
-      // Send confirmation emails only after successful payment
       try {
         const emailRes = await fetch("/api/payments/send-confirmation", {
           method: "POST",
@@ -181,12 +266,9 @@ function PaymentInner() {
           }),
         });
 
-        const emailData = await emailRes.json();
-
         if (!emailRes.ok) {
+          const emailData = await emailRes.json();
           console.error("send-confirmation error:", emailData);
-        } else {
-          console.log("send-confirmation success:", emailData);
         }
       } catch (emailErr) {
         console.error("send-confirmation request failed:", emailErr);
@@ -254,11 +336,11 @@ function PaymentInner() {
 
             <button
               onClick={completePayment}
-              disabled={loading}
+              disabled={loading || attachingCard || !cardReady}
               className="w-full rounded-full bg-emerald-600 py-3 text-sm font-extrabold text-white hover:bg-emerald-500 disabled:opacity-50"
             >
-              {loading
-                ? "Processing..."
+              {loading || attachingCard
+                ? "Preparing..."
                 : `Pay ${moneyFromCents(prepared.amountCents)}`}
             </button>
           </div>

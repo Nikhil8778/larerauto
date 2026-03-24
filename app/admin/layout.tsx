@@ -12,6 +12,7 @@ const navGroups = [
       { href: "/admin/orders", label: "Orders" },
       { href: "/admin/customers", label: "Customers" },
       { href: "/admin/invoices", label: "Invoices" },
+      { href: "/admin/mechanics", label: "Mechanics" },
     ],
   },
   {
