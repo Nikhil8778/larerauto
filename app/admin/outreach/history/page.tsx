@@ -159,75 +159,147 @@ export default async function OutreachHistoryPage({
 
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <form
-                          action={async () => {
-                            "use server";
-                            await updateOutreachMessageStatus(message.id, "sent");
-                          }}
-                        >
-                          <button
-                            type="submit"
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700"
-                          >
-                            Mark Sent
-                          </button>
-                        </form>
+                        {message.sendStatus === "pending" ? (
+                          <>
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "sent");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700"
+                              >
+                                Mark Sent
+                              </button>
+                            </form>
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await updateOutreachMessageStatus(message.id, "delivered");
-                          }}
-                        >
-                          <button
-                            type="submit"
-                            className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-700"
-                          >
-                            Mark Delivered
-                          </button>
-                        </form>
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "failed");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700"
+                              >
+                                Mark Failed
+                              </button>
+                            </form>
+                          </>
+                        ) : null}
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await updateOutreachMessageStatus(message.id, "failed");
-                          }}
-                        >
-                          <button
-                            type="submit"
-                            className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700"
-                          >
-                            Mark Failed
-                          </button>
-                        </form>
+                        {message.sendStatus === "sent" ? (
+                          <>
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "delivered");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-700"
+                              >
+                                Mark Delivered
+                              </button>
+                            </form>
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await updateOutreachMessageStatus(message.id, "replied");
-                          }}
-                        >
-                          <button
-                            type="submit"
-                            className="rounded-xl border border-sky-200 px-3 py-2 text-xs font-bold text-sky-700"
-                          >
-                            Mark Replied
-                          </button>
-                        </form>
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "replied");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-sky-200 px-3 py-2 text-xs font-bold text-sky-700"
+                              >
+                                Mark Replied
+                              </button>
+                            </form>
 
-                        <form
-                          action={async () => {
-                            "use server";
-                            await updateOutreachMessageStatus(message.id, "pending");
-                          }}
-                        >
-                          <button
-                            type="submit"
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "failed");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700"
+                              >
+                                Mark Failed
+                              </button>
+                            </form>
+                          </>
+                        ) : null}
+
+                        {message.sendStatus === "delivered" ? (
+                          <>
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "replied");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-sky-200 px-3 py-2 text-xs font-bold text-sky-700"
+                              >
+                                Mark Replied
+                              </button>
+                            </form>
+
+                            <form
+                              action={async () => {
+                                "use server";
+                                await updateOutreachMessageStatus(message.id, "failed");
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700"
+                              >
+                                Mark Failed
+                              </button>
+                            </form>
+                          </>
+                        ) : null}
+
+                        {message.sendStatus === "failed" ? (
+                          <form
+                            action={async () => {
+                              "use server";
+                              await updateOutreachMessageStatus(message.id, "pending");
+                            }}
                           >
-                            Reset Pending
-                          </button>
-                        </form>
+                            <button
+                              type="submit"
+                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"
+                            >
+                              Reset Pending
+                            </button>
+                          </form>
+                        ) : null}
+
+                        {message.sendStatus === "replied" ? (
+                          <form
+                            action={async () => {
+                              "use server";
+                              await updateOutreachMessageStatus(message.id, "pending");
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"
+                            >
+                              Reset Pending
+                            </button>
+                          </form>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
