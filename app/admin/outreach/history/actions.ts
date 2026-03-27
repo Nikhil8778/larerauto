@@ -9,7 +9,7 @@ export async function updateOutreachMessageStatus(
 ) {
   const normalized = String(status || "").trim().toLowerCase();
 
-  const allowed = ["pending", "sent", "failed", "replied"];
+  const allowed = ["pending", "sent", "delivered", "failed", "replied"];
   if (!allowed.includes(normalized)) {
     throw new Error("Invalid message status.");
   }
@@ -19,9 +19,11 @@ export async function updateOutreachMessageStatus(
     data: {
       sendStatus: normalized,
       sentAt: normalized === "sent" ? new Date() : undefined,
+      deliveredAt: normalized === "delivered" ? new Date() : undefined,
       repliedAt: normalized === "replied" ? new Date() : undefined,
     },
   });
 
   revalidatePath("/admin/outreach/history");
+  revalidatePath("/admin/outreach/campaigns");
 }

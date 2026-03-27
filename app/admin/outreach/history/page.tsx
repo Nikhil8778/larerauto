@@ -11,6 +11,8 @@ function badgeClass(status: string) {
   switch (status) {
     case "sent":
       return "bg-emerald-100 text-emerald-700";
+    case "delivered":
+      return "bg-violet-100 text-violet-700";
     case "failed":
       return "bg-rose-100 text-rose-700";
     case "replied":
@@ -62,6 +64,7 @@ export default async function OutreachHistoryPage({
               <option value="all">all</option>
               <option value="pending">pending</option>
               <option value="sent">sent</option>
+              <option value="delivered">delivered</option>
               <option value="failed">failed</option>
               <option value="replied">replied</option>
             </select>
@@ -90,7 +93,9 @@ export default async function OutreachHistoryPage({
                   <th className="px-3 py-3 font-bold">Channel</th>
                   <th className="px-3 py-3 font-bold">Message</th>
                   <th className="px-3 py-3 font-bold">Status</th>
-                  <th className="px-3 py-3 font-bold">Sent At</th>
+                  <th className="px-3 py-3 font-bold">Provider ID</th>
+                  <th className="px-3 py-3 font-bold">Timeline</th>
+                  <th className="px-3 py-3 font-bold">Error</th>
                   <th className="px-3 py-3 font-bold">Actions</th>
                 </tr>
               </thead>
@@ -115,7 +120,7 @@ export default async function OutreachHistoryPage({
                     <td className="px-3 py-3 text-slate-700">{message.channel}</td>
 
                     <td className="px-3 py-3 text-slate-700">
-                      <div className="max-w-[380px] whitespace-pre-wrap break-words text-xs leading-6">
+                      <div className="max-w-[320px] whitespace-pre-wrap break-words text-xs leading-6">
                         {message.bodySnapshot || "—"}
                       </div>
                     </td>
@@ -130,8 +135,26 @@ export default async function OutreachHistoryPage({
                       </span>
                     </td>
 
-                    <td className="px-3 py-3 text-slate-700">
-                      {message.sentAt ? new Date(message.sentAt).toLocaleString() : "—"}
+                    <td className="px-3 py-3 text-xs text-slate-600">
+                      {message.providerMessageId || "—"}
+                    </td>
+
+                    <td className="px-3 py-3 text-xs text-slate-700">
+                      <div>Sent: {message.sentAt ? new Date(message.sentAt).toLocaleString() : "—"}</div>
+                      <div className="mt-1">
+                        Delivered:{" "}
+                        {message.deliveredAt ? new Date(message.deliveredAt).toLocaleString() : "—"}
+                      </div>
+                      <div className="mt-1">
+                        Replied:{" "}
+                        {message.repliedAt ? new Date(message.repliedAt).toLocaleString() : "—"}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-3 text-xs text-rose-700">
+                      <div className="max-w-[220px] whitespace-pre-wrap break-words">
+                        {message.errorMessage || "—"}
+                      </div>
                     </td>
 
                     <td className="px-3 py-3">
@@ -147,6 +170,20 @@ export default async function OutreachHistoryPage({
                             className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700"
                           >
                             Mark Sent
+                          </button>
+                        </form>
+
+                        <form
+                          action={async () => {
+                            "use server";
+                            await updateOutreachMessageStatus(message.id, "delivered");
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            className="rounded-xl border border-violet-200 px-3 py-2 text-xs font-bold text-violet-700"
+                          >
+                            Mark Delivered
                           </button>
                         </form>
 
