@@ -54,9 +54,7 @@ function parseCsv(text: string) {
     .split("\n")
     .filter((line) => line.trim().length > 0);
 
-  if (lines.length === 0) {
-    return [];
-  }
+  if (lines.length === 0) return [];
 
   const headers = splitCsvLine(lines[0]);
 
@@ -72,7 +70,7 @@ function parseCsv(text: string) {
   });
 }
 
-export async function importWorkshopLeadsCsv(formData: FormData) {
+export async function importWorkshopLeadsCsv(formData: FormData): Promise<void> {
   const file = formData.get("csvFile");
 
   if (!(file instanceof File)) {
@@ -81,8 +79,6 @@ export async function importWorkshopLeadsCsv(formData: FormData) {
 
   const text = await file.text();
   const rows = parseCsv(text);
-
-  let inserted = 0;
 
   for (const row of rows) {
     const shopName = (row.shopName || "").trim();
@@ -110,12 +106,8 @@ export async function importWorkshopLeadsCsv(formData: FormData) {
         scrapedAt: null,
       },
     });
-
-    inserted += 1;
   }
 
   revalidatePath("/admin/outreach/leads");
   revalidatePath("/admin/outreach/leads/import");
-
-  return { inserted };
 }
