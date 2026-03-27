@@ -202,7 +202,20 @@ model Quote {
   vin            String?
   bestOfferId    String?
   itemPriceCents Int
+
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  sourceChannel  String?
+  campaignId     String?
+
   createdAt      DateTime @default(now())
+
+  @@index([utmSource])
+  @@index([utmMedium])
+  @@index([utmCampaign])
+  @@index([sourceChannel])
+  @@index([campaignId])
 }
 
 model AdminUser {

@@ -338,20 +338,30 @@ export default function QuoteClient() {
   }
 
   function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
+  e.preventDefault();
+  if (!canSubmit) return;
 
-    const params = new URLSearchParams({
-      year,
-      make,
-      model,
-      engine,
-      partType,
-      vin,
-    });
+  const utmSource = sp.get("utm_source") || "";
+  const utmMedium = sp.get("utm_medium") || "";
+  const utmCampaign = sp.get("utm_campaign") || "";
+  const sourceChannel = utmSource || "";
 
-    router.push(`/quote/result?${params.toString()}`);
-  }
+  const params = new URLSearchParams({
+    year,
+    make,
+    model,
+    engine,
+    partType,
+    vin,
+  });
+
+  if (utmSource) params.set("utm_source", utmSource);
+  if (utmMedium) params.set("utm_medium", utmMedium);
+  if (utmCampaign) params.set("utm_campaign", utmCampaign);
+  if (sourceChannel) params.set("source_channel", sourceChannel);
+
+  router.push(`/quote/result?${params.toString()}`);
+}
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">

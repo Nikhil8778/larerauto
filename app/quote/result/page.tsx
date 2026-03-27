@@ -7,6 +7,10 @@ type SearchParams = Promise<{
   engine?: string;
   partType?: string;
   vin?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  source_channel?: string;
 }>;
 
 export default async function QuoteResultPage({

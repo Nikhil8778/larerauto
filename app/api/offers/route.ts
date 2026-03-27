@@ -105,21 +105,7 @@ export async function GET(req: Request) {
 
   const best = offers[0];
 
-  const quote = await prisma.quote.create({
-    data: {
-      make,
-      model,
-      engine,
-      year,
-      partType,
-      vin: vin || null,
-      bestOfferId: best.id,
-      itemPriceCents: best.sellPriceCents,
-    },
-  });
-
   return NextResponse.json({
-    quoteId: quote.id,
     offerId: best.id,
     product: {
       title: best.part.title,
