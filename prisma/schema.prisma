@@ -625,3 +625,111 @@ model Campaign {
   @@index([status])
   @@index([platform])
 }
+
+model WorkshopLead {
+  id             String   @id @default(cuid())
+  shopName       String
+  contactName    String?
+  phone          String?
+  whatsappNumber String?
+  email          String?
+  website        String?
+  addressLine1   String?
+  city           String?
+  province       String?
+  postalCode     String?
+  googleMapsUrl  String?
+  category       String?
+  rating         Float?
+  reviewCount    Int?
+  source         String?   // yellowpages | google | manual | csv
+  status         String    @default("new") // new | reviewed | approved | rejected | contacted | replied | converted
+  notes          String?
+  scrapedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages       OutreachMessage[]
+
+  @@index([shopName])
+  @@index([city])
+  @@index([province])
+  @@index([status])
+  @@index([source])
+}
+
+model MessageTemplate {
+  id         String   @id @default(cuid())
+  name       String
+  channel    String   // whatsapp | sms | email
+  audience   String?  // workshop | mechanic | retail
+  subject    String?
+  body       String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  campaigns  OutreachCampaign[]
+
+  @@index([channel])
+  @@index([audience])
+  @@index([isActive])
+}
+
+model OutreachCampaign {
+  id              String   @id @default(cuid())
+  name            String
+  channel         String   // whatsapp | sms | email
+  audience        String?  // workshop | mechanic | retail
+  templateId      String?
+  status          String   @default("draft") // draft | active | paused | completed
+  dailyLimit      Int      @default(25)
+  totalRecipients Int      @default(0)
+  sentCount       Int      @default(0)
+  failedCount     Int      @default(0)
+  repliedCount    Int      @default(0)
+  notes           String?
+  filterCity           String?
+  filterSource         String?
+  filterLeadStatus     String?   @default("approved")
+  requireWhatsapp      Boolean   @default(false)
+  requireEmail         Boolean   @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  template        MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  messages        OutreachMessage[]
+
+  @@index([channel])
+  @@index([status])
+  @@index([templateId])
+}
+
+model OutreachMessage {
+  id                String   @id @default(cuid())
+  campaignId        String
+  workshopLeadId    String?
+  channel           String   // whatsapp | sms | email
+  recipientName     String?
+  recipientPhone    String?
+  recipientEmail    String?
+  bodySnapshot      String
+  mediaUrl          String?
+  sendStatus        String   @default("pending") // pending | sent | failed | delivered | replied
+  providerMessageId String?
+  errorMessage      String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  repliedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  campaign          OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  workshopLead      WorkshopLead?    @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([workshopLeadId])
+  @@index([channel])
+  @@index([sendStatus])
+  @@index([sentAt])
+}

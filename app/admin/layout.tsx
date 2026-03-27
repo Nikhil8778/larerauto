@@ -25,6 +25,16 @@ const navGroups = [
     ],
   },
   {
+    title: "Outreach",
+    items: [
+      { href: "/admin/outreach", label: "Dashboard" },
+      { href: "/admin/outreach/leads", label: "Workshop Leads" },
+      { href: "/admin/outreach/templates", label: "Templates" },
+      { href: "/admin/outreach/campaigns", label: "Campaigns" },
+      { href: "/admin/outreach/history", label: "Message History" },
+    ],
+  },
+  {
     title: "Communication",
     items: [
       { href: "/admin/messages", label: "Messages" },
