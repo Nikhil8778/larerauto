@@ -69,21 +69,21 @@ export async function sendEmailMessage(
       html: buildHtml(input),
     });
 
-    const providerMessageId =
-      response.data?.id ||
-      (typeof response.id === "string" ? response.id : null);
+    if (response.error) {
+      return {
+        success: false,
+        error: response.error.message || "Failed to send email.",
+      };
+    }
 
     return {
       success: true,
-      providerMessageId,
+      providerMessageId: response.data?.id ?? null,
     };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to send email.";
-
     return {
       success: false,
-      error: message,
+      error: error instanceof Error ? error.message : "Failed to send email.",
     };
   }
 }
