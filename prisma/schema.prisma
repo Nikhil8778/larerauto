@@ -312,7 +312,10 @@ model Order {
   referralCode          MechanicReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
   referralDiscountCents Int          @default(0)
   customerAccessToken   String       @unique @default(cuid())
-
+  utmSource             String?
+  utmMedium             String?
+  utmCampaign           String?
+  campaignId            String?
   items                 OrderItem[]
   invoices              Invoice[]
   customer              Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -332,6 +335,10 @@ model Order {
   @@index([orderPlacedByType])
   @@index([referralCodeId])
   @@index([referredByMechanicId])
+  @@index([utmSource])
+  @@index([utmMedium])
+  @@index([utmCampaign])
+  @@index([campaignId])
 }
 
 model OrderItem {

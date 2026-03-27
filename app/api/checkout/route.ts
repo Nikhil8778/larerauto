@@ -19,6 +19,10 @@ async function buildInvoiceNumber() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const utmSource = body.utmSource ? String(body.utmSource).trim() : null;
+    const utmMedium = body.utmMedium ? String(body.utmMedium).trim() : null;
+    const utmCampaign = body.utmCampaign ? String(body.utmCampaign).trim() : null;
+    const sourceChannel = body.sourceChannel ? String(body.sourceChannel).trim() : "website";
 
     const incomingOrderId = body.orderId ? String(body.orderId).trim() : null;
 
@@ -313,7 +317,10 @@ export async function POST(req: Request) {
           postalCode,
           country,
           estimatedDeliveryText,
-          sourceChannel: "website",
+          sourceChannel,
+          utmSource,
+          utmMedium,
+          utmCampaign,
           orderPlacedByType: isMechanicCheckout ? "mechanic" : "customer",
           mechanicId: isMechanicCheckout ? currentMechanic?.id ?? null : null,
           mechanicDiscountCents: safeMechanicDiscountCents,
@@ -492,7 +499,10 @@ export async function POST(req: Request) {
           postalCode,
           country,
           estimatedDeliveryText,
-          sourceChannel: "website",
+          sourceChannel,
+          utmSource,
+          utmMedium,
+          utmCampaign,
           orderPlacedByType: isMechanicCheckout ? "mechanic" : "customer",
           mechanicId: isMechanicCheckout ? currentMechanic?.id ?? null : null,
           mechanicDiscountCents: safeMechanicDiscountCents,
@@ -579,6 +589,10 @@ export async function POST(req: Request) {
       mechanicCreditCents: safeMechanicCreditCents,
       referredByMechanicId,
       resumed: Boolean(incomingOrderId),
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      sourceChannel,
     });
 
     return NextResponse.json({

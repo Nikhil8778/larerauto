@@ -100,6 +100,10 @@ export default function CheckoutClient() {
   const initialPartType = sp.get("partType") || "Item";
   const initialQty = Number(sp.get("qty") || 1);
   const mode = sp.get("mode") || "";
+  const utmSource = sp.get("utm_source") || "";
+  const utmMedium = sp.get("utm_medium") || "";
+  const utmCampaign = sp.get("utm_campaign") || "";
+  const sourceChannel = sp.get("source_channel") || utmSource || "website";
 
   const isMechanicResume = mode === "mechanic-resume";
   const isMechanicDirect = mode === "mechanic";
@@ -450,6 +454,10 @@ export default function CheckoutClient() {
           referralCodeId: appliedReferral?.id || null,
           referredByMechanicId: appliedReferral?.mechanicId || null,
           referralDiscountCents: Math.round(customerReferralDiscountAmount * 100),
+          utmSource,
+          utmMedium,
+          utmCampaign,
+          sourceChannel,
         }),
       });
 
