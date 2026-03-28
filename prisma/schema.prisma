@@ -648,7 +648,8 @@ model WorkshopLead {
   scrapedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
+  inboundMessages OutreachInboundMessage[]
+  replySession    OutreachReplySession?
   messages       OutreachMessage[]
 
   @@index([shopName])
@@ -727,10 +728,52 @@ model OutreachMessage {
 
   campaign          OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   workshopLead      WorkshopLead?    @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
+  inboundMessages   OutreachInboundMessage[]
 
   @@index([campaignId])
   @@index([workshopLeadId])
   @@index([channel])
   @@index([sendStatus])
   @@index([sentAt])
+}
+
+model OutreachInboundMessage {
+  id                String   @id @default(cuid())
+  outreachMessageId String?
+  workshopLeadId    String?
+  channel           String
+  fromNumber        String?
+  body              String
+  providerMessageId String?
+  createdAt         DateTime @default(now())
+
+  outreachMessage   OutreachMessage? @relation(fields: [outreachMessageId], references: [id], onDelete: SetNull)
+  workshopLead      WorkshopLead?    @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
+
+  @@index([outreachMessageId])
+  @@index([workshopLeadId])
+  @@index([channel])
+  @@index([fromNumber])
+}
+
+model OutreachReplySession {
+  id             String   @id @default(cuid())
+  workshopLeadId String   @unique
+  channel        String
+  lastOutboundId String?
+  partType       String?
+  year           Int?
+  make           String?
+  model          String?
+  engine         String?
+  status         String   @default("open")
+  lastInboundAt  DateTime?
+  lastOutboundAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workshopLead   WorkshopLead @relation(fields: [workshopLeadId], references: [id], onDelete: Cascade)
+
+  @@index([channel])
+  @@index([status])
 }

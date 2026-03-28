@@ -22,6 +22,17 @@ function badgeClass(status: string) {
   }
 }
 
+function isPreviewableImage(url: string | null) {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes(".png") ||
+    lower.includes(".jpg") ||
+    lower.includes(".jpeg") ||
+    lower.includes(".webp")
+  );
+}
+
 export default async function OutreachHistoryPage({
   searchParams,
 }: {
@@ -92,6 +103,7 @@ export default async function OutreachHistoryPage({
                   <th className="px-3 py-3 font-bold">Contact</th>
                   <th className="px-3 py-3 font-bold">Channel</th>
                   <th className="px-3 py-3 font-bold">Message</th>
+                  <th className="px-3 py-3 font-bold">Media</th>
                   <th className="px-3 py-3 font-bold">Status</th>
                   <th className="px-3 py-3 font-bold">Provider ID</th>
                   <th className="px-3 py-3 font-bold">Timeline</th>
@@ -120,9 +132,34 @@ export default async function OutreachHistoryPage({
                     <td className="px-3 py-3 text-slate-700">{message.channel}</td>
 
                     <td className="px-3 py-3 text-slate-700">
-                      <div className="max-w-[320px] whitespace-pre-wrap break-words text-xs leading-6">
+                      <div className="max-w-[280px] whitespace-pre-wrap break-words text-xs leading-6">
                         {message.bodySnapshot || "—"}
                       </div>
+                    </td>
+
+                    <td className="px-3 py-3 text-xs text-slate-700">
+                      {message.mediaUrl ? (
+                        <div className="max-w-[220px] space-y-2">
+                          {isPreviewableImage(message.mediaUrl) ? (
+                            <img
+                              src={message.mediaUrl}
+                              alt="Media preview"
+                              className="h-20 w-20 rounded-xl border border-slate-200 object-cover"
+                            />
+                          ) : null}
+
+                          <a
+                            href={message.mediaUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block break-all font-semibold text-blue-600 underline"
+                          >
+                            Open media
+                          </a>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
                     </td>
 
                     <td className="px-3 py-3">
@@ -136,7 +173,9 @@ export default async function OutreachHistoryPage({
                     </td>
 
                     <td className="px-3 py-3 text-xs text-slate-600">
-                      {message.providerMessageId || "—"}
+                      <div className="max-w-[180px] break-all">
+                        {message.providerMessageId || "—"}
+                      </div>
                     </td>
 
                     <td className="px-3 py-3 text-xs text-slate-700">
@@ -269,23 +308,7 @@ export default async function OutreachHistoryPage({
                           </>
                         ) : null}
 
-                        {message.sendStatus === "failed" ? (
-                          <form
-                            action={async () => {
-                              "use server";
-                              await updateOutreachMessageStatus(message.id, "pending");
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"
-                            >
-                              Reset Pending
-                            </button>
-                          </form>
-                        ) : null}
-
-                        {message.sendStatus === "replied" ? (
+                        {(message.sendStatus === "failed" || message.sendStatus === "replied") ? (
                           <form
                             action={async () => {
                               "use server";
