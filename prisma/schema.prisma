@@ -651,7 +651,8 @@ model WorkshopLead {
   inboundMessages OutreachInboundMessage[]
   replySession    OutreachReplySession?
   messages       OutreachMessage[]
-
+  followUps     OutreachLeadFollowUp[]
+  
   @@index([shopName])
   @@index([city])
   @@index([province])
@@ -776,4 +777,20 @@ model OutreachReplySession {
 
   @@index([channel])
   @@index([status])
+}
+
+model OutreachLeadFollowUp {
+  id             String   @id @default(cuid())
+  workshopLeadId String
+  note           String
+  followUpAt     DateTime?
+  status         String   @default("open") // open | done | cancelled
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workshopLead   WorkshopLead @relation(fields: [workshopLeadId], references: [id], onDelete: Cascade)
+
+  @@index([workshopLeadId])
+  @@index([status])
+  @@index([followUpAt])
 }

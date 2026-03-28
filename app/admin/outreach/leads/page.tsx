@@ -115,19 +115,28 @@ export default async function OutreachLeadsPage() {
                     </td>
 
                     <td className="px-3 py-3">
-                      <form
-                        action={async () => {
-                          "use server";
-                          await deleteWorkshopLead(lead.id);
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700"
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/admin/outreach/leads/${lead.id}`}
+                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-bold text-blue-700"
                         >
-                          Delete
-                        </button>
-                      </form>
+                          View Conversation
+                        </Link>
+
+                        <form
+                          action={async () => {
+                            "use server";
+                            await deleteWorkshopLead(lead.id);
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700"
+                          >
+                            Delete
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 ))}
