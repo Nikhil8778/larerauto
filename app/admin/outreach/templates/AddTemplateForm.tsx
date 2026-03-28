@@ -71,13 +71,25 @@ export default function AddTemplateForm() {
         </div>
 
         <div className="md:col-span-2">
+          <label className="text-sm font-bold text-slate-700">Media URL</label>
+          <input
+            name="mediaUrl"
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+            placeholder="https://www.lareauto.ca/marketing/flyer-1.jpg"
+          />
+          <p className="mt-2 text-xs font-medium text-slate-500">
+            Optional. Mostly useful for WhatsApp templates with image/flyer creatives.
+          </p>
+        </div>
+
+        <div className="md:col-span-2">
           <label className="text-sm font-bold text-slate-700">Template Body</label>
           <textarea
             name="body"
             required
             rows={8}
             className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
-            placeholder={`Hi {{shopName}},\n\nWe are LARE Auto. We supply quality auto parts across Ontario with competitive pricing and fast sourcing.\n\nIf you would like, we can share pricing for your commonly used parts.\n\nwww.lareauto.ca`}
+            placeholder={`Hi {{shopName}},\n\nWe are LARE Auto. We supply quality auto parts across Ontario with competitive pricing and fast sourcing.\n\nWe can share pricing for your commonly used parts.\n\nwww.lareauto.ca`}
           />
         </div>
       </div>

@@ -291,7 +291,7 @@ export async function queueCampaignMessages(campaignId: string) {
         recipientPhone,
         recipientEmail,
         bodySnapshot,
-        mediaUrl: null,
+        mediaUrl: campaign.template.mediaUrl || null,
         sendStatus: "pending",
         errorMessage: null,
       },

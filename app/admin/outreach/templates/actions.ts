@@ -31,6 +31,7 @@ export async function createMessageTemplate(formData: FormData) {
       channel,
       audience: emptyToNull(formData.get("audience")),
       subject: emptyToNull(formData.get("subject")),
+      mediaUrl: emptyToNull(formData.get("mediaUrl")),
       body,
       isActive: String(formData.get("isActive") ?? "true") === "true",
     },

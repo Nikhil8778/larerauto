@@ -665,6 +665,7 @@ model MessageTemplate {
   audience   String?  // workshop | mechanic | retail
   subject    String?
   body       String
+  mediaUrl   String?
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
