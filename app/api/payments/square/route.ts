@@ -1,3 +1,4 @@
+import { evaluateCustomerMechanicEligibility } from "@/lib/mechanic-eligibility";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -115,6 +116,8 @@ export async function POST(req: Request) {
       },
     });
 
+    await evaluateCustomerMechanicEligibility(updatedOrder.customerId);
+
     console.log("payment referral update check:", {
       referralCodeId: updatedOrder.referralCodeId,
       referredByMechanicId: updatedOrder.referredByMechanicId,
@@ -128,6 +131,25 @@ export async function POST(req: Request) {
           creditBalanceCents: {
             increment: updatedOrder.mechanicCreditCents,
           },
+        },
+      });
+
+      await prisma.mechanicCommission.upsert({
+        where: {
+          mechanicId_orderId_type: {
+            mechanicId: updatedOrder.referredByMechanicId,
+            orderId: updatedOrder.id,
+            type: "referral",
+          },
+        },
+        update: {},
+        create: {
+          mechanicId: updatedOrder.referredByMechanicId,
+          orderId: updatedOrder.id,
+          type: "referral",
+          amountCents: updatedOrder.mechanicCreditCents,
+          status: "pending",
+          earnedAt: paidAt,
         },
       });
     }

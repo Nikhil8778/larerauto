@@ -193,7 +193,7 @@ model VendorCandidate {
 }
 
 model Quote {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   make           String
   model          String
   engine         String
@@ -203,13 +203,13 @@ model Quote {
   bestOfferId    String?
   itemPriceCents Int
 
-  utmSource      String?
-  utmMedium      String?
-  utmCampaign    String?
-  sourceChannel  String?
-  campaignId     String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  sourceChannel String?
+  campaignId    String?
 
-  createdAt      DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([utmSource])
   @@index([utmMedium])
@@ -242,26 +242,33 @@ model AdminSession {
 }
 
 model Customer {
-  id             String      @id @default(cuid())
-  firstName      String
-  lastName       String?
-  email          String?
-  phone          String?
-  whatsappNumber String?
-  companyName    String?
-  notes          String?
-  addressLine1   String?
-  addressLine2   String?
-  city           String?
-  province       String?
-  postalCode     String?
-  country        String? @default("Canada")
-  isActive       Boolean     @default(true)
-  orders         Order[]
-  invoices       Invoice[]
-  conversations  Conversation[]
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                        String         @id @default(cuid())
+  firstName                 String
+  lastName                  String?
+  email                     String?
+  phone                     String?
+  whatsappNumber            String?
+  companyName               String?
+  notes                     String?
+  addressLine1              String?
+  addressLine2              String?
+  city                      String?
+  province                  String?
+  postalCode                String?
+  country                   String?        @default("Canada")
+  isActive                  Boolean        @default(true)
+  orders                    Order[]
+  invoices                  Invoice[]
+  conversations             Conversation[]
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  convertedWorkshopLead     WorkshopLead?  @relation("WorkshopLeadCustomer")
+  isMechanicEligible        Boolean        @default(false)
+  mechanicEligibleAt        DateTime?
+  mechanicInviteSentAt      DateTime?
+  mechanicInviteToken       String?        @unique
+  mechanicInviteExpiresAt   DateTime?
+  mechanicSignupCompletedAt DateTime?
 
   @@index([email])
   @@index([phone])
@@ -271,24 +278,24 @@ model Customer {
 }
 
 model Order {
-  id                    String       @id @default(cuid())
-  orderNumber           String       @unique
+  id                    String                @id @default(cuid())
+  orderNumber           String                @unique
   customerId            String
   quoteId               String?
-  status                String       @default("draft")
-  paymentStatus         String       @default("pending")
-  fulfillmentStatus     String       @default("unfulfilled")
-  currency              String       @default("CAD")
-  subtotalCents         Int          @default(0)
-  taxCents              Int          @default(0)
-  shippingCents         Int          @default(0)
-  discountCents         Int          @default(0)
-  totalCents            Int          @default(0)
+  status                String                @default("draft")
+  paymentStatus         String                @default("pending")
+  fulfillmentStatus     String                @default("unfulfilled")
+  currency              String                @default("CAD")
+  subtotalCents         Int                   @default(0)
+  taxCents              Int                   @default(0)
+  shippingCents         Int                   @default(0)
+  discountCents         Int                   @default(0)
+  totalCents            Int                   @default(0)
   internalNotes         String?
   customerNotes         String?
   sourceChannel         String?
-  deliveryChargeCents   Int          @default(0)
-  taxPercentApplied     Float        @default(13)
+  deliveryChargeCents   Int                   @default(0)
+  taxPercentApplied     Float                 @default(13)
   paymentGateway        String?
   paymentReference      String?
   paidAt                DateTime?
@@ -298,29 +305,30 @@ model Order {
   city                  String?
   province              String?
   postalCode            String?
-  country               String?      @default("Canada")
+  country               String?               @default("Canada")
   estimatedDeliveryText String?
   mechanicId            String?
-  mechanic              Mechanic?    @relation("MechanicDirectOrders", fields: [mechanicId], references: [id], onDelete: SetNull)
+  mechanic              Mechanic?             @relation("MechanicDirectOrders", fields: [mechanicId], references: [id], onDelete: SetNull)
   mechanicReferralCode  String?
   orderPlacedByType     String?
-  mechanicDiscountCents Int          @default(0)
+  mechanicDiscountCents Int                   @default(0)
   referralCodeId        String?
   referredByMechanicId  String?
-  mechanicCreditCents   Int          @default(0)
-  referredByMechanic    Mechanic?    @relation("ReferredOrders", fields: [referredByMechanicId], references: [id], onDelete: SetNull)
+  mechanicCreditCents   Int                   @default(0)
+  referredByMechanic    Mechanic?             @relation("ReferredOrders", fields: [referredByMechanicId], references: [id], onDelete: SetNull)
   referralCode          MechanicReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
-  referralDiscountCents Int          @default(0)
-  customerAccessToken   String       @unique @default(cuid())
+  referralDiscountCents Int                   @default(0)
+  customerAccessToken   String                @unique @default(cuid())
   utmSource             String?
   utmMedium             String?
   utmCampaign           String?
   campaignId            String?
   items                 OrderItem[]
   invoices              Invoice[]
-  customer              Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  mechanicCommissions   MechanicCommission[]
 
   @@index([customerId])
   @@index([status])
@@ -342,7 +350,7 @@ model Order {
 }
 
 model OrderItem {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   orderId        String
   offerId        String?
   title          String
@@ -353,13 +361,13 @@ model OrderItem {
   model          String?
   engine         String?
   year           Int?
-  quantity       Int       @default(1)
+  quantity       Int      @default(1)
   unitPriceCents Int
   lineTotalCents Int
   notes          String?
-  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([orderId])
   @@index([offerId])
@@ -367,17 +375,17 @@ model OrderItem {
 }
 
 model Invoice {
-  id                  String        @id @default(cuid())
-  invoiceNumber       String        @unique
+  id                  String    @id @default(cuid())
+  invoiceNumber       String    @unique
   customerId          String
   orderId             String?
-  status              String        @default("draft")
-  currency            String        @default("CAD")
-  subtotalCents       Int           @default(0)
-  taxCents            Int           @default(0)
-  shippingCents       Int           @default(0)
-  discountCents       Int           @default(0)
-  totalCents          Int           @default(0)
+  status              String    @default("draft")
+  currency            String    @default("CAD")
+  subtotalCents       Int       @default(0)
+  taxCents            Int       @default(0)
+  shippingCents       Int       @default(0)
+  discountCents       Int       @default(0)
+  totalCents          Int       @default(0)
   dueDate             DateTime?
   paidAt              DateTime?
   notes               String?
@@ -386,13 +394,13 @@ model Invoice {
   paymentReference    String?
   emailSentAt         DateTime?
   transactionId       String?
-  customerAccessToken String        @unique @default(cuid())
+  customerAccessToken String    @unique @default(cuid())
 
-  customer            Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  order               Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  items               InvoiceItem[]
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  customer  Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order     Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  items     InvoiceItem[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([customerId])
   @@index([orderId])
@@ -404,33 +412,33 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   invoiceId      String
   title          String
   description    String?
-  quantity       Int       @default(1)
+  quantity       Int      @default(1)
   unitPriceCents Int
   lineTotalCents Int
-  invoice        Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([invoiceId])
 }
 
 model Conversation {
-  id               String                 @id @default(cuid())
+  id               String                @id @default(cuid())
   customerId       String?
   channel          String
   externalThreadId String?
-  status           String                 @default("open")
+  status           String                @default("open")
   assignedTo       String?
   lastMessageAt    DateTime?
   notes            String?
-  customer         Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customer         Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
   messages         ConversationMessage[]
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@index([customerId])
   @@index([channel])
@@ -440,17 +448,17 @@ model Conversation {
 }
 
 model ConversationMessage {
-  id               String        @id @default(cuid())
+  id               String       @id @default(cuid())
   conversationId   String
   direction        String
   senderName       String?
   senderHandle     String?
-  messageType      String        @default("text")
+  messageType      String       @default("text")
   content          String?
   automationRuleId String?
   sentAt           DateTime?
-  conversation     Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt        DateTime      @default(now())
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
 
   @@index([conversationId])
   @@index([direction])
@@ -458,16 +466,16 @@ model ConversationMessage {
 }
 
 model AutoReplyRule {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
   channel       String
   triggerType   String
   triggerValue  String?
   replyTemplate String
-  isActive      Boolean   @default(true)
-  sortOrder     Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([channel])
   @@index([triggerType])
@@ -475,22 +483,22 @@ model AutoReplyRule {
 }
 
 model BusinessSetting {
-  id                   String    @id @default(cuid())
-  businessName         String    @default("Lare Auto")
+  id                   String   @id @default(cuid())
+  businessName         String   @default("Lare Auto")
   businessEmail        String?
   businessPhone        String?
   whatsappNumber       String?
   instagramHandle      String?
   facebookPage         String?
-  invoicePrefix        String    @default("INV")
-  quotePrefix          String    @default("QTE")
-  defaultTaxPercent    Float     @default(13)
-  currency             String    @default("CAD")
+  invoicePrefix        String   @default("INV")
+  quotePrefix          String   @default("QTE")
+  defaultTaxPercent    Float    @default(13)
+  currency             String   @default("CAD")
   afterHoursReply      String?
   welcomeReply         String?
   invoiceReminderReply String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model Mechanic {
@@ -508,7 +516,7 @@ model Mechanic {
   notes               String?
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
-
+  commissions         MechanicCommission[]
   sessions            MechanicSession[]
   referralCodes       MechanicReferralCode[]
   directOrders        Order[]                @relation("MechanicDirectOrders")
@@ -521,13 +529,13 @@ model Mechanic {
 }
 
 model MechanicSession {
-  id         String    @id @default(cuid())
-  token      String    @unique
+  id         String   @id @default(cuid())
+  token      String   @unique
   mechanicId String
   expiresAt  DateTime
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
 
-  mechanic   Mechanic  @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+  mechanic Mechanic @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
 
   @@index([mechanicId])
   @@index([expiresAt])
@@ -545,8 +553,8 @@ model MechanicReferralCode {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  mechanic            Mechanic  @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
-  orders              Order[]
+  mechanic Mechanic @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+  orders   Order[]
 
   @@index([mechanicId])
   @@index([code])
@@ -555,24 +563,24 @@ model MechanicReferralCode {
 }
 
 model SocialChannel {
-  id               String               @id @default(cuid())
-  platform         SocialPlatform
-  displayName      String
-  handle           String?
-  profileUrl       String
-  profileImageUrl  String?
-  isActive         Boolean              @default(true)
-  connectionType   SocialConnectionType @default(MANUAL)
+  id                String               @id @default(cuid())
+  platform          SocialPlatform
+  displayName       String
+  handle            String?
+  profileUrl        String
+  profileImageUrl   String?
+  isActive          Boolean              @default(true)
+  connectionType    SocialConnectionType @default(MANUAL)
   externalAccountId String?
-  accessTokenEnc   String?
-  refreshTokenEnc  String?
-  tokenExpiresAt   DateTime?
-  notes            String?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  accessTokenEnc    String?
+  refreshTokenEnc   String?
+  tokenExpiresAt    DateTime?
+  notes             String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  posts           SocialPost[]
-  
+  posts SocialPost[]
+
   @@unique([platform, profileUrl])
   @@index([platform])
   @@index([isActive])
@@ -595,8 +603,8 @@ model SocialPost {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  channel        SocialChannel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  campaign       Campaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  channel  SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  campaign Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([channelId])
   @@index([campaignId])
@@ -620,39 +628,44 @@ model Campaign {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  posts       SocialPost[]
+  posts SocialPost[]
 
   @@index([status])
   @@index([platform])
 }
 
 model WorkshopLead {
-  id             String   @id @default(cuid())
-  shopName       String
-  contactName    String?
-  phone          String?
-  whatsappNumber String?
-  email          String?
-  website        String?
-  addressLine1   String?
-  city           String?
-  province       String?
-  postalCode     String?
-  googleMapsUrl  String?
-  category       String?
-  rating         Float?
-  reviewCount    Int?
-  source         String?   // yellowpages | google | manual | csv
-  status         String    @default("new") // new | reviewed | approved | rejected | contacted | replied | converted
-  notes          String?
-  scrapedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  inboundMessages OutreachInboundMessage[]
-  replySession    OutreachReplySession?
-  messages       OutreachMessage[]
-  followUps     OutreachLeadFollowUp[]
-  
+  id                    String                   @id @default(cuid())
+  shopName              String
+  contactName           String?
+  phone                 String?
+  whatsappNumber        String?
+  email                 String?
+  website               String?
+  addressLine1          String?
+  city                  String?
+  province              String?
+  postalCode            String?
+  googleMapsUrl         String?
+  category              String?
+  rating                Float?
+  reviewCount           Int?
+  source                String? // yellowpages | google | manual | csv
+  status                String                   @default("new") // new | reviewed | approved | rejected | contacted | replied | converted
+  notes                 String?
+  scrapedAt             DateTime?
+  customerId            String?                  @unique
+  convertedAt           DateTime?
+  conversionNote        String?
+  estimatedMonthlyValue Float?
+  customer              Customer?                @relation("WorkshopLeadCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  inboundMessages       OutreachInboundMessage[]
+  replySession          OutreachReplySession?
+  messages              OutreachMessage[]
+  followUps             OutreachLeadFollowUp[]
+
   @@index([shopName])
   @@index([city])
   @@index([province])
@@ -661,18 +674,18 @@ model WorkshopLead {
 }
 
 model MessageTemplate {
-  id         String   @id @default(cuid())
-  name       String
-  channel    String   // whatsapp | sms | email
-  audience   String?  // workshop | mechanic | retail
-  subject    String?
-  body       String
-  mediaUrl   String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  channel   String // whatsapp | sms | email
+  audience  String? // workshop | mechanic | retail
+  subject   String?
+  body      String
+  mediaUrl  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  campaigns  OutreachCampaign[]
+  campaigns OutreachCampaign[]
 
   @@index([channel])
   @@index([audience])
@@ -680,28 +693,28 @@ model MessageTemplate {
 }
 
 model OutreachCampaign {
-  id              String   @id @default(cuid())
-  name            String
-  channel         String   // whatsapp | sms | email
-  audience        String?  // workshop | mechanic | retail
-  templateId      String?
-  status          String   @default("draft") // draft | active | paused | completed
-  dailyLimit      Int      @default(25)
-  totalRecipients Int      @default(0)
-  sentCount       Int      @default(0)
-  failedCount     Int      @default(0)
-  repliedCount    Int      @default(0)
-  notes           String?
-  filterCity           String?
-  filterSource         String?
-  filterLeadStatus     String?   @default("approved")
-  requireWhatsapp      Boolean   @default(false)
-  requireEmail         Boolean   @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  channel          String // whatsapp | sms | email
+  audience         String? // workshop | mechanic | retail
+  templateId       String?
+  status           String   @default("draft") // draft | active | paused | completed
+  dailyLimit       Int      @default(25)
+  totalRecipients  Int      @default(0)
+  sentCount        Int      @default(0)
+  failedCount      Int      @default(0)
+  repliedCount     Int      @default(0)
+  notes            String?
+  filterCity       String?
+  filterSource     String?
+  filterLeadStatus String?  @default("approved")
+  requireWhatsapp  Boolean  @default(false)
+  requireEmail     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  template        MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  messages        OutreachMessage[]
+  template MessageTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  messages OutreachMessage[]
 
   @@index([channel])
   @@index([status])
@@ -709,27 +722,27 @@ model OutreachCampaign {
 }
 
 model OutreachMessage {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   campaignId        String
   workshopLeadId    String?
-  channel           String   // whatsapp | sms | email
+  channel           String // whatsapp | sms | email
   recipientName     String?
   recipientPhone    String?
   recipientEmail    String?
   bodySnapshot      String
   mediaUrl          String?
-  sendStatus        String   @default("pending") // pending | sent | failed | delivered | replied
+  sendStatus        String    @default("pending") // pending | sent | failed | delivered | replied
   providerMessageId String?
   errorMessage      String?
   sentAt            DateTime?
   deliveredAt       DateTime?
   repliedAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  campaign          OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  workshopLead      WorkshopLead?    @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
-  inboundMessages   OutreachInboundMessage[]
+  campaign        OutreachCampaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  workshopLead    WorkshopLead?            @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
+  inboundMessages OutreachInboundMessage[]
 
   @@index([campaignId])
   @@index([workshopLeadId])
@@ -748,8 +761,8 @@ model OutreachInboundMessage {
   providerMessageId String?
   createdAt         DateTime @default(now())
 
-  outreachMessage   OutreachMessage? @relation(fields: [outreachMessageId], references: [id], onDelete: SetNull)
-  workshopLead      WorkshopLead?    @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
+  outreachMessage OutreachMessage? @relation(fields: [outreachMessageId], references: [id], onDelete: SetNull)
+  workshopLead    WorkshopLead?    @relation(fields: [workshopLeadId], references: [id], onDelete: SetNull)
 
   @@index([outreachMessageId])
   @@index([workshopLeadId])
@@ -758,8 +771,8 @@ model OutreachInboundMessage {
 }
 
 model OutreachReplySession {
-  id             String   @id @default(cuid())
-  workshopLeadId String   @unique
+  id             String    @id @default(cuid())
+  workshopLeadId String    @unique
   channel        String
   lastOutboundId String?
   partType       String?
@@ -767,30 +780,51 @@ model OutreachReplySession {
   make           String?
   model          String?
   engine         String?
-  status         String   @default("open")
+  status         String    @default("open")
   lastInboundAt  DateTime?
   lastOutboundAt DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  workshopLead   WorkshopLead @relation(fields: [workshopLeadId], references: [id], onDelete: Cascade)
+  workshopLead WorkshopLead @relation(fields: [workshopLeadId], references: [id], onDelete: Cascade)
 
   @@index([channel])
   @@index([status])
 }
 
 model OutreachLeadFollowUp {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   workshopLeadId String
   note           String
   followUpAt     DateTime?
-  status         String   @default("open") // open | done | cancelled
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         String    @default("open") // open | done | cancelled
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  workshopLead   WorkshopLead @relation(fields: [workshopLeadId], references: [id], onDelete: Cascade)
+  workshopLead WorkshopLead @relation(fields: [workshopLeadId], references: [id], onDelete: Cascade)
 
   @@index([workshopLeadId])
   @@index([status])
   @@index([followUpAt])
+}
+
+model MechanicCommission {
+  id          String    @id @default(cuid())
+  mechanicId  String
+  orderId     String
+  type        String    @default("referral") // referral
+  amountCents Int
+  status      String    @default("pending") // pending | paid | cancelled
+  earnedAt    DateTime  @default(now())
+  paidAt      DateTime?
+  payoutNote  String?
+
+  mechanic Mechanic @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([mechanicId, orderId, type])
+  @@index([mechanicId])
+  @@index([orderId])
+  @@index([status])
+  @@index([earnedAt])
 }

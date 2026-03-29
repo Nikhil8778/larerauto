@@ -4,6 +4,7 @@ import type { OutreachSendInput, OutreachSendResult } from "./types";
 const twilioSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioWhatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim();
 
 const client =
   twilioSid && twilioAuthToken ? twilio(twilioSid, twilioAuthToken) : null;
@@ -24,6 +25,26 @@ function normalizePhoneForWhatsApp(phone: string) {
   }
 
   return cleaned;
+}
+
+function getStatusCallbackUrl(path: string) {
+  if (!baseUrl) return undefined;
+
+  try {
+    const url = new URL(baseUrl);
+
+    if (
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.protocol !== "https:"
+    ) {
+      return undefined;
+    }
+
+    return `${baseUrl}${path}`;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function sendWhatsAppMessage(
@@ -74,15 +95,17 @@ export async function sendWhatsAppMessage(
       };
     }
 
-   const message = await client.messages.create({
-  from: twilioWhatsappFrom.startsWith("whatsapp:")
-    ? twilioWhatsappFrom
-    : `whatsapp:${twilioWhatsappFrom}`,
-  to: `whatsapp:${toPhone}`,
-  body: input.body,
-  ...(input.mediaUrl ? { mediaUrl: [input.mediaUrl] } : {}),
-  statusCallback: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhooks/twilio/whatsapp`,
-});
+    const statusCallback = getStatusCallbackUrl("/api/webhooks/twilio/whatsapp");
+
+    const message = await client.messages.create({
+      from: twilioWhatsappFrom.startsWith("whatsapp:")
+        ? twilioWhatsappFrom
+        : `whatsapp:${twilioWhatsappFrom}`,
+      to: `whatsapp:${toPhone}`,
+      body: input.body,
+      ...(input.mediaUrl ? { mediaUrl: [input.mediaUrl] } : {}),
+      ...(statusCallback ? { statusCallback } : {}),
+    });
 
     return {
       success: true,

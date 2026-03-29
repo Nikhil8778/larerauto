@@ -4,7 +4,7 @@ import type { OutreachSendInput, OutreachSendResult } from "./types";
 const twilioSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioSmsFrom = process.env.TWILIO_SMS_FROM;
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim();
 
 const client =
   twilioSid && twilioAuthToken ? twilio(twilioSid, twilioAuthToken) : null;
@@ -17,6 +17,26 @@ function normalizePhone(phone: string) {
   if (cleaned.length === 11 && cleaned.startsWith("1")) return `+${cleaned}`;
 
   return cleaned;
+}
+
+function getStatusCallbackUrl(path: string) {
+  if (!baseUrl) return undefined;
+
+  try {
+    const url = new URL(baseUrl);
+
+    if (
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.protocol !== "https:"
+    ) {
+      return undefined;
+    }
+
+    return `${baseUrl}${path}`;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function sendSmsMessage(
@@ -67,15 +87,13 @@ export async function sendSmsMessage(
       };
     }
 
+    const statusCallback = getStatusCallbackUrl("/api/webhooks/twilio/sms");
+
     const message = await client.messages.create({
       from: twilioSmsFrom,
       to: toPhone,
       body: input.body,
-      ...(baseUrl
-        ? {
-            statusCallback: `${baseUrl}/api/webhooks/twilio/sms`,
-          }
-        : {}),
+      ...(statusCallback ? { statusCallback } : {}),
     });
 
     return {

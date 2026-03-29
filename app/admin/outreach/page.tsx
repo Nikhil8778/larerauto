@@ -25,10 +25,25 @@ function pct(part: number, total: number) {
   return Math.round((part / total) * 100);
 }
 
+function followUpStatusClass(status: string) {
+  switch (status) {
+    case "done":
+      return "bg-emerald-100 text-emerald-700";
+    case "cancelled":
+      return "bg-rose-100 text-rose-700";
+    default:
+      return "bg-amber-100 text-amber-700";
+  }
+}
+
 export default async function OutreachDashboardPage() {
+  const now = new Date();
+
   const [
     totalLeads,
     approvedLeads,
+    convertedLeads,
+    convertedCustomers,
     activeCampaigns,
     pendingMessages,
     sentMessages,
@@ -39,10 +54,22 @@ export default async function OutreachDashboardPage() {
     recentCampaigns,
     recentMessages,
     campaignsWithMessages,
+    overdueFollowUps,
+    upcomingFollowUps,
   ] = await Promise.all([
     prisma.workshopLead.count(),
     prisma.workshopLead.count({
       where: { status: "approved" },
+    }),
+    prisma.workshopLead.count({
+      where: { status: "converted" },
+    }),
+    prisma.customer.count({
+      where: {
+        convertedWorkshopLead: {
+          isNot: null,
+        },
+      },
     }),
     prisma.outreachCampaign.count({
       where: { status: "active" },
@@ -101,6 +128,34 @@ export default async function OutreachDashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
+    prisma.outreachLeadFollowUp.findMany({
+      where: {
+        status: "open",
+        followUpAt: {
+          not: null,
+          lt: now,
+        },
+      },
+      include: {
+        workshopLead: true,
+      },
+      orderBy: { followUpAt: "asc" },
+      take: 5,
+    }),
+    prisma.outreachLeadFollowUp.findMany({
+      where: {
+        status: "open",
+        followUpAt: {
+          not: null,
+          gte: now,
+        },
+      },
+      include: {
+        workshopLead: true,
+      },
+      orderBy: { followUpAt: "asc" },
+      take: 5,
+    }),
   ]);
 
   const whatsappMessages = allMessages.filter((m) => m.channel === "whatsapp");
@@ -153,13 +208,13 @@ export default async function OutreachDashboardPage() {
         failed,
         replied,
         replyRate: pct(replied, total),
-        failRate: pct(failed, total),
       };
     })
     .sort((a, b) => b.replied - a.replied || b.delivered - a.delivered || b.total - a.total)
     .slice(0, 5);
 
-  const totalTracked = pendingMessages + sentMessages + deliveredMessages + failedMessages + repliedMessages;
+  const totalTracked =
+    pendingMessages + sentMessages + deliveredMessages + failedMessages + repliedMessages;
 
   return (
     <div className="space-y-6">
@@ -170,44 +225,72 @@ export default async function OutreachDashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("slate")}`}>
           <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Total Leads</div>
           <div className="mt-3 text-3xl font-black text-slate-900">{totalLeads}</div>
         </div>
 
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("emerald")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-emerald-700">Approved Leads</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-emerald-700">
+            Approved Leads
+          </div>
           <div className="mt-3 text-3xl font-black text-emerald-900">{approvedLeads}</div>
         </div>
 
+        <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("violet")}`}>
+          <div className="text-sm font-bold uppercase tracking-wide text-violet-700">
+            Converted Leads
+          </div>
+          <div className="mt-3 text-3xl font-black text-violet-900">{convertedLeads}</div>
+        </div>
+
+        <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("amber")}`}>
+          <div className="text-sm font-bold uppercase tracking-wide text-amber-700">
+            Converted Customers
+          </div>
+          <div className="mt-3 text-3xl font-black text-amber-900">{convertedCustomers}</div>
+        </div>
+
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("sky")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-sky-700">Active Campaigns</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-sky-700">
+            Active Campaigns
+          </div>
           <div className="mt-3 text-3xl font-black text-sky-900">{activeCampaigns}</div>
         </div>
 
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("slate")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-slate-500">Pending Messages</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-slate-500">
+            Pending Messages
+          </div>
           <div className="mt-3 text-3xl font-black text-slate-900">{pendingMessages}</div>
         </div>
 
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("emerald")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-emerald-700">Sent Messages</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-emerald-700">
+            Sent Messages
+          </div>
           <div className="mt-3 text-3xl font-black text-emerald-900">{sentMessages}</div>
         </div>
 
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("violet")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-violet-700">Delivered Messages</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-violet-700">
+            Delivered Messages
+          </div>
           <div className="mt-3 text-3xl font-black text-violet-900">{deliveredMessages}</div>
         </div>
 
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("rose")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-rose-700">Failed Messages</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-rose-700">
+            Failed Messages
+          </div>
           <div className="mt-3 text-3xl font-black text-rose-900">{failedMessages}</div>
         </div>
 
         <div className={`rounded-[24px] border p-5 shadow-sm ${cardStyle("amber")}`}>
-          <div className="text-sm font-bold uppercase tracking-wide text-amber-700">Replied Messages</div>
+          <div className="text-sm font-bold uppercase tracking-wide text-amber-700">
+            Replied Messages
+          </div>
           <div className="mt-3 text-3xl font-black text-amber-900">{repliedMessages}</div>
         </div>
       </div>
@@ -265,7 +348,10 @@ export default async function OutreachDashboardPage() {
 
           <div className="mt-6 space-y-4">
             {channelStats.map((channel) => (
-              <div key={channel.name} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div
+                key={channel.name}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-lg font-black text-slate-900">{channel.name}</div>
                   <div className="text-sm font-bold text-slate-600">Total: {channel.total}</div>
@@ -283,27 +369,6 @@ export default async function OutreachDashboardPage() {
                   </div>
                   <div className="rounded-xl bg-sky-100 px-3 py-2 text-xs font-bold text-sky-700">
                     Replied: {channel.replied}
-                  </div>
-                </div>
-
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
-                  <div className="flex h-full w-full">
-                    <div
-                      className="bg-emerald-400"
-                      style={{ width: `${pct(channel.sent, channel.total)}%` }}
-                    />
-                    <div
-                      className="bg-violet-400"
-                      style={{ width: `${pct(channel.delivered, channel.total)}%` }}
-                    />
-                    <div
-                      className="bg-rose-400"
-                      style={{ width: `${pct(channel.failed, channel.total)}%` }}
-                    />
-                    <div
-                      className="bg-sky-400"
-                      style={{ width: `${pct(channel.replied, channel.total)}%` }}
-                    />
                   </div>
                 </div>
               </div>
@@ -351,6 +416,130 @@ export default async function OutreachDashboardPage() {
         </div>
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-rose-900">Overdue Follow-Ups</h2>
+              <p className="mt-1 text-sm font-medium text-rose-700">
+                Workshops that need action now.
+              </p>
+            </div>
+
+            <Link
+              href="/admin/outreach/leads"
+              className="text-sm font-bold text-rose-700 hover:text-rose-900"
+            >
+              View leads →
+            </Link>
+          </div>
+
+          {overdueFollowUps.length === 0 ? (
+            <div className="mt-6 text-sm font-medium text-rose-700">
+              No overdue follow-ups.
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {overdueFollowUps.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-rose-200 bg-white px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="font-bold text-slate-900">{item.workshopLead.shopName}</div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${followUpStatusClass(
+                        item.status
+                      )}`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-xs font-semibold text-rose-700">
+                    Due: {item.followUpAt ? new Date(item.followUpAt).toLocaleString() : "—"}
+                  </div>
+
+                  <div className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                    {item.note}
+                  </div>
+
+                  <div className="mt-4">
+                    <Link
+                      href={`/admin/outreach/leads/${item.workshopLeadId}`}
+                      className="text-sm font-bold text-blue-600 hover:text-blue-800"
+                    >
+                      Open Lead →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-amber-900">Upcoming Follow-Ups</h2>
+              <p className="mt-1 text-sm font-medium text-amber-700">
+                Next workshop reminders in queue.
+              </p>
+            </div>
+
+            <Link
+              href="/admin/outreach/leads"
+              className="text-sm font-bold text-amber-700 hover:text-amber-900"
+            >
+              View leads →
+            </Link>
+          </div>
+
+          {upcomingFollowUps.length === 0 ? (
+            <div className="mt-6 text-sm font-medium text-amber-700">
+              No upcoming follow-ups scheduled.
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {upcomingFollowUps.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-amber-200 bg-white px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="font-bold text-slate-900">{item.workshopLead.shopName}</div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${followUpStatusClass(
+                        item.status
+                      )}`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-xs font-semibold text-amber-700">
+                    Due: {item.followUpAt ? new Date(item.followUpAt).toLocaleString() : "—"}
+                  </div>
+
+                  <div className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                    {item.note}
+                  </div>
+
+                  <div className="mt-4">
+                    <Link
+                      href={`/admin/outreach/leads/${item.workshopLeadId}`}
+                      className="text-sm font-bold text-blue-600 hover:text-blue-800"
+                    >
+                      Open Lead →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -395,9 +584,9 @@ export default async function OutreachDashboardPage() {
                     </td>
                     <td className="px-3 py-3 text-slate-700">{campaign.channel}</td>
                     <td className="px-3 py-3 text-slate-700">{campaign.total}</td>
-                    <td className="px-3 py-3 text-violet-700 font-bold">{campaign.delivered}</td>
-                    <td className="px-3 py-3 text-sky-700 font-bold">{campaign.replied}</td>
-                    <td className="px-3 py-3 text-rose-700 font-bold">{campaign.failed}</td>
+                    <td className="px-3 py-3 font-bold text-violet-700">{campaign.delivered}</td>
+                    <td className="px-3 py-3 font-bold text-sky-700">{campaign.replied}</td>
+                    <td className="px-3 py-3 font-bold text-rose-700">{campaign.failed}</td>
                     <td className="px-3 py-3 text-slate-700">{campaign.replyRate}%</td>
                   </tr>
                 ))}

@@ -26,6 +26,8 @@ type StatsPayload = {
     monthCount: number;
     monthSalesCents: number;
     monthCreditCents: number;
+    pendingPayoutCents: number;
+    paidPayoutCents: number;
   };
   recentDraftDirectOrders: OrderRow[];
   recentPaidDirectOrders: OrderRow[];
@@ -70,7 +72,7 @@ export default function DashboardStats() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border p-5">
           <div className="text-sm text-gray-500">Paid Direct Orders This Week</div>
           <div className="mt-2 text-2xl font-bold">{stats.direct.weekCount}</div>
@@ -102,6 +104,26 @@ export default function DashboardStats() {
           </div>
           <div className="mt-1 text-sm text-gray-600">
             Trade savings: {money(stats.direct.monthDiscountSavedCents)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-5">
+          <div className="text-sm text-gray-500">Pending Payout</div>
+          <div className="mt-2 text-2xl font-bold text-amber-700">
+            {money(stats.referral.pendingPayoutCents)}
+          </div>
+          <div className="mt-1 text-sm text-gray-600">
+            Weekly Interac due
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-5">
+          <div className="text-sm text-gray-500">Paid Payout Total</div>
+          <div className="mt-2 text-2xl font-bold text-emerald-700">
+            {money(stats.referral.paidPayoutCents)}
+          </div>
+          <div className="mt-1 text-sm text-gray-600">
+            Cleared commissions
           </div>
         </div>
       </div>

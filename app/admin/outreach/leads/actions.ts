@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+
 import { sendEmailMessage } from "@/lib/outreach/send-email";
 import { sendSmsMessage } from "@/lib/outreach/send-sms";
 import { sendWhatsAppMessage } from "@/lib/outreach/send-whatsapp";
@@ -195,9 +196,7 @@ export async function sendLeadManualReply(formData: FormData) {
   if (lead.status !== "converted") {
     await prisma.workshopLead.update({
       where: { id: lead.id },
-      data: {
-        status: "contacted",
-      },
+      data: { status: "contacted" },
     });
   }
 
@@ -254,4 +253,150 @@ export async function deleteLeadFollowUp(followUpId: string, leadId: string) {
 
   revalidatePath(`/admin/outreach/leads/${leadId}`);
   revalidatePath("/admin/outreach/leads");
+}
+
+export async function convertLeadToCustomer(formData: FormData) {
+  const leadId = String(formData.get("leadId") ?? "").trim();
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const email = emptyToNull(formData.get("email"));
+  const phone = emptyToNull(formData.get("phone"));
+  const whatsappNumber = emptyToNull(formData.get("whatsappNumber"));
+  const companyName = emptyToNull(formData.get("companyName"));
+  const customerNotes = emptyToNull(formData.get("customerNotes"));
+  const conversionNote = emptyToNull(formData.get("conversionNote"));
+  const estimatedMonthlyValue = numberOrNull(formData.get("estimatedMonthlyValue"));
+
+  if (!leadId) {
+    throw new Error("Lead ID is required.");
+  }
+
+  const lead = await prisma.workshopLead.findUnique({
+    where: { id: leadId },
+    select: {
+      id: true,
+      shopName: true,
+      contactName: true,
+      phone: true,
+      whatsappNumber: true,
+      email: true,
+      addressLine1: true,
+      city: true,
+      province: true,
+      postalCode: true,
+      customerId: true,
+    },
+  });
+
+  if (!lead) {
+    throw new Error("Lead not found.");
+  }
+
+  const finalFirstName = firstName || lead.contactName || lead.shopName;
+  const finalLastName = lastName || null;
+  const finalCompanyName = companyName || lead.shopName;
+
+  let customerId = lead.customerId || null;
+
+  if (customerId) {
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        firstName: finalFirstName,
+        lastName: finalLastName,
+        email,
+        phone,
+        whatsappNumber,
+        companyName: finalCompanyName,
+        notes: customerNotes,
+        addressLine1: lead.addressLine1,
+        city: lead.city,
+        province: lead.province,
+        postalCode: lead.postalCode,
+      },
+    });
+  } else {
+    let existingCustomer = null;
+
+    if (email) {
+      existingCustomer = await prisma.customer.findFirst({
+        where: { email },
+        select: { id: true },
+      });
+    }
+
+    if (!existingCustomer && phone) {
+      existingCustomer = await prisma.customer.findFirst({
+        where: { phone },
+        select: { id: true },
+      });
+    }
+
+    if (!existingCustomer && whatsappNumber) {
+      existingCustomer = await prisma.customer.findFirst({
+        where: { whatsappNumber },
+        select: { id: true },
+      });
+    }
+
+    if (existingCustomer) {
+      customerId = existingCustomer.id;
+
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: {
+          firstName: finalFirstName,
+          lastName: finalLastName,
+          email,
+          phone,
+          whatsappNumber,
+          companyName: finalCompanyName,
+          notes: customerNotes,
+          addressLine1: lead.addressLine1,
+          city: lead.city,
+          province: lead.province,
+          postalCode: lead.postalCode,
+        },
+      });
+    } else {
+      const createdCustomer = await prisma.customer.create({
+        data: {
+          firstName: finalFirstName,
+          lastName: finalLastName,
+          email,
+          phone,
+          whatsappNumber,
+          companyName: finalCompanyName,
+          notes: customerNotes,
+          addressLine1: lead.addressLine1,
+          city: lead.city,
+          province: lead.province,
+          postalCode: lead.postalCode,
+        },
+        select: { id: true },
+      });
+
+      customerId = createdCustomer.id;
+    }
+  }
+
+  if (!customerId) {
+    throw new Error("Customer could not be created or linked.");
+  }
+
+  await prisma.workshopLead.update({
+    where: { id: lead.id },
+    data: {
+      status: "converted",
+      customerId,
+      convertedAt: new Date(),
+      conversionNote,
+      estimatedMonthlyValue,
+    },
+  });
+
+  revalidatePath(`/admin/outreach/leads/${lead.id}`);
+  revalidatePath("/admin/outreach/leads");
+  revalidatePath("/admin/outreach");
+  revalidatePath("/admin/customers");
 }

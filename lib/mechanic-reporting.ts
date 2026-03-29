@@ -24,6 +24,8 @@ export async function getMechanicDashboardStats(mechanicId: string) {
     recentDraftDirectOrders,
     recentPaidDirectOrders,
     recentReferredOrders,
+    pendingCommissions,
+    paidCommissions,
   ] = await Promise.all([
     prisma.order.findMany({
       where: {
@@ -86,6 +88,24 @@ export async function getMechanicDashboardStats(mechanicId: string) {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
+    prisma.mechanicCommission.findMany({
+      where: {
+        mechanicId,
+        status: "pending",
+      },
+      select: {
+        amountCents: true,
+      },
+    }),
+    prisma.mechanicCommission.findMany({
+      where: {
+        mechanicId,
+        status: "paid",
+      },
+      select: {
+        amountCents: true,
+      },
+    }),
   ]);
 
   const sum = (rows: { totalCents: number }[]) =>
@@ -93,6 +113,9 @@ export async function getMechanicDashboardStats(mechanicId: string) {
 
   const sumField = (rows: Record<string, any>[], field: string) =>
     rows.reduce((acc, row) => acc + Number(row[field] || 0), 0);
+
+  const sumAmount = (rows: { amountCents: number }[]) =>
+    rows.reduce((acc, row) => acc + row.amountCents, 0);
 
   return {
     direct: {
@@ -111,6 +134,8 @@ export async function getMechanicDashboardStats(mechanicId: string) {
       monthCount: referredOrdersMonth.length,
       monthSalesCents: sum(referredOrdersMonth),
       monthCreditCents: sumField(referredOrdersMonth, "mechanicCreditCents"),
+      pendingPayoutCents: sumAmount(pendingCommissions),
+      paidPayoutCents: sumAmount(paidCommissions),
     },
     recentDraftDirectOrders,
     recentPaidDirectOrders,

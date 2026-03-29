@@ -1,3 +1,4 @@
+import { evaluateCustomerMechanicEligibility } from "@/lib/mechanic-eligibility";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -89,6 +90,8 @@ export async function POST(req: Request) {
         transactionId: payment.id,
       },
     });
+
+    await evaluateCustomerMechanicEligibility(order.customerId);
 
     return NextResponse.json({
       ok: true,

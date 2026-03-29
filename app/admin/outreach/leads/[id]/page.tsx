@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
+  convertLeadToCustomer,
   createLeadFollowUp,
   deleteLeadFollowUp,
   sendLeadManualReply,
@@ -84,6 +85,7 @@ export default async function OutreachLeadConversationPage({ params }: PageProps
     prisma.workshopLead.findUnique({
       where: { id },
       include: {
+        customer: true,
         messages: {
           include: {
             campaign: true,
@@ -210,6 +212,128 @@ export default async function OutreachLeadConversationPage({ params }: PageProps
               <div><span className="font-bold text-slate-900">Address:</span> {lead.addressLine1 || "—"}</div>
               <div><span className="font-bold text-slate-900">Notes:</span> {lead.notes || "—"}</div>
             </div>
+          </div>
+
+          <div className="rounded-[28px] border border-violet-200 bg-violet-50 p-6 shadow-sm">
+            <div className="text-2xl font-black text-violet-900">Convert to Customer</div>
+            <p className="mt-2 text-sm font-medium text-violet-700">
+              Once this workshop becomes a real buyer, create or link a customer record here.
+            </p>
+
+            {lead.customer ? (
+              <div className="mt-4 rounded-2xl border border-violet-200 bg-white px-4 py-4 text-sm text-slate-700">
+                <div><span className="font-bold text-slate-900">Linked Customer:</span> {lead.customer.firstName} {lead.customer.lastName || ""}</div>
+                <div className="mt-1"><span className="font-bold text-slate-900">Company:</span> {lead.customer.companyName || "—"}</div>
+                <div className="mt-1"><span className="font-bold text-slate-900">Email:</span> {lead.customer.email || "—"}</div>
+                <div className="mt-1"><span className="font-bold text-slate-900">Phone:</span> {lead.customer.phone || "—"}</div>
+                <div className="mt-1"><span className="font-bold text-slate-900">Converted At:</span> {lead.convertedAt ? new Date(lead.convertedAt).toLocaleString() : "—"}</div>
+                <div className="mt-1"><span className="font-bold text-slate-900">Est. Monthly Value:</span> {lead.estimatedMonthlyValue ? `$${lead.estimatedMonthlyValue.toFixed(2)}` : "—"}</div>
+                <div className="mt-1"><span className="font-bold text-slate-900">Conversion Note:</span> {lead.conversionNote || "—"}</div>
+              </div>
+            ) : null}
+
+            <form action={convertLeadToCustomer} className="mt-6 grid gap-4 md:grid-cols-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">First Name</label>
+                <input
+                  name="firstName"
+                  defaultValue={lead.customer?.firstName || lead.contactName || lead.shopName}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">Last Name</label>
+                <input
+                  name="lastName"
+                  defaultValue={lead.customer?.lastName || ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">Company Name</label>
+                <input
+                  name="companyName"
+                  defaultValue={lead.customer?.companyName || lead.shopName}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">Email</label>
+                <input
+                  name="email"
+                  type="email"
+                  defaultValue={lead.customer?.email || lead.email || ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">Phone</label>
+                <input
+                  name="phone"
+                  defaultValue={lead.customer?.phone || lead.phone || ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">WhatsApp Number</label>
+                <input
+                  name="whatsappNumber"
+                  defaultValue={lead.customer?.whatsappNumber || lead.whatsappNumber || ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-slate-700">Estimated Monthly Value (CAD)</label>
+                <input
+                  name="estimatedMonthlyValue"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={lead.estimatedMonthlyValue ?? ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                  placeholder="1500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-sm font-bold text-slate-700">Conversion Note</label>
+                <textarea
+                  name="conversionNote"
+                  rows={3}
+                  defaultValue={lead.conversionNote || ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                  placeholder="Example: Workshop placed first real order and wants regular pricing."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-sm font-bold text-slate-700">Customer Notes</label>
+                <textarea
+                  name="customerNotes"
+                  rows={3}
+                  defaultValue={lead.customer?.notes || lead.notes || ""}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none"
+                  placeholder="Internal CRM notes for customer module."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  className="rounded-full bg-violet-700 px-6 py-3 text-sm font-extrabold text-white hover:bg-violet-800"
+                >
+                  {lead.customer ? "Update Converted Customer" : "Convert to Customer"}
+                </button>
+              </div>
+            </form>
           </div>
 
           <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
