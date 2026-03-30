@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getCart, type CartItem } from "@/lib/cart";
 
 function money(n: number) {
   return n.toLocaleString("en-CA", { style: "currency", currency: "CAD" });
@@ -91,11 +92,27 @@ type ReferralValidateResponse = {
   message?: string;
 };
 
+type CheckoutLine = {
+  offerId: string | null;
+  partType: string;
+  title: string;
+  quantity: number;
+  itemPrice: number;
+  itemPriceCents: number;
+  year?: string;
+  make?: string;
+  model?: string;
+  engine?: string;
+  vin?: string;
+  imageUrl?: string;
+};
+
 export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
   const incomingOrderId = sp.get("orderId") || "";
+  const quoteId = sp.get("quoteId") || "";
   const initialOfferId = sp.get("offerId") || "";
   const initialPartType = sp.get("partType") || "Item";
   const initialQty = Number(sp.get("qty") || 1);
@@ -107,6 +124,7 @@ export default function CheckoutClient() {
 
   const isMechanicResume = mode === "mechanic-resume";
   const isMechanicDirect = mode === "mechanic";
+  const isCartMode = mode === "cart";
   const isMechanicCheckout = isMechanicDirect || isMechanicResume;
   const isCustomerCheckout = !isMechanicCheckout;
 
@@ -116,6 +134,7 @@ export default function CheckoutClient() {
   const [offerId, setOfferId] = useState(initialOfferId);
   const [partType, setPartType] = useState(initialPartType);
   const [qty, setQty] = useState(initialQty);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -137,10 +156,21 @@ export default function CheckoutClient() {
   const [loadingPrefill, setLoadingPrefill] = useState(false);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(false);
+  const [leadSaved, setLeadSaved] = useState(false);
   const [error, setError] = useState("");
 
   const [mechanicPriceData, setMechanicPriceData] =
     useState<MechanicPricePreviewResponse["pricing"] | null>(null);
+
+  useEffect(() => {
+    if (!isCartMode) return;
+    const items = getCart();
+    setCartItems(items);
+
+    if (!items.length) {
+      setError("Your cart is empty.");
+    }
+  }, [isCartMode]);
 
   useEffect(() => {
     let ignore = false;
@@ -286,6 +316,135 @@ export default function CheckoutClient() {
     };
   }, [isMechanicCheckout, offerId]);
 
+  useEffect(() => {
+    if (isCartMode) return;
+    if (!offerId || !partType) return;
+
+    const hasMeaningfulContact =
+      fullName.trim() && (email.trim() || phone.trim());
+
+    if (!hasMeaningfulContact) return;
+
+    const t = setTimeout(async () => {
+      try {
+        await fetch("/api/quote-leads", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            quoteId: quoteId || null,
+            offerId,
+            fullName,
+            email,
+            phone,
+            addressLine1,
+            addressLine2,
+            city,
+            province,
+            postalCode: postal,
+            country,
+            year: sp.get("year") || null,
+            make: sp.get("make") || null,
+            model: sp.get("model") || null,
+            engine: sp.get("engine") || null,
+            partType,
+            vin: sp.get("vin") || null,
+            itemPriceCents: Math.round(
+              (isMechanicCheckout && mechanicPriceData
+                ? mechanicPriceData.discountedPriceCents / 100
+                : fallbackCustomerPrice) * 100
+            ),
+            utmSource,
+            utmMedium,
+            utmCampaign,
+            sourceChannel,
+            status: "contact_captured",
+          }),
+        });
+
+        setLeadSaved(true);
+      } catch {
+        // silent
+      }
+    }, 900);
+
+    return () => clearTimeout(t);
+  }, [
+    isCartMode,
+    quoteId,
+    offerId,
+    partType,
+    fullName,
+    email,
+    phone,
+    addressLine1,
+    addressLine2,
+    city,
+    province,
+    postal,
+    country,
+    isMechanicCheckout,
+    mechanicPriceData,
+    fallbackCustomerPrice,
+    utmSource,
+    utmMedium,
+    utmCampaign,
+    sourceChannel,
+    sp,
+  ]);
+
+  const checkoutLines: CheckoutLine[] = useMemo(() => {
+    if (isCartMode) {
+      return cartItems.map((item) => ({
+        offerId: item.offerId,
+        partType: item.partType,
+        title: item.title,
+        quantity: item.quantity,
+        itemPrice: item.itemPrice,
+        itemPriceCents: item.itemPriceCents,
+        year: item.year,
+        make: item.make,
+        model: item.model,
+        engine: item.engine,
+        vin: item.vin,
+        imageUrl: item.imageUrl,
+      }));
+    }
+
+    return [
+      {
+        offerId: offerId || null,
+        partType,
+        title: partType,
+        quantity: qty,
+        itemPrice:
+          isMechanicCheckout && mechanicPriceData
+            ? mechanicPriceData.discountedPriceCents / 100
+            : fallbackCustomerPrice,
+        itemPriceCents:
+          isMechanicCheckout && mechanicPriceData
+            ? mechanicPriceData.discountedPriceCents
+            : Math.round(fallbackCustomerPrice * 100),
+        year: sp.get("year") || undefined,
+        make: sp.get("make") || undefined,
+        model: sp.get("model") || undefined,
+        engine: sp.get("engine") || undefined,
+        vin: sp.get("vin") || undefined,
+      },
+    ];
+  }, [
+    isCartMode,
+    cartItems,
+    offerId,
+    partType,
+    qty,
+    isMechanicCheckout,
+    mechanicPriceData,
+    fallbackCustomerPrice,
+    sp,
+  ]);
+
   const regularUnitPrice = useMemo(() => {
     if (isMechanicCheckout && mechanicPriceData) {
       return mechanicPriceData.originalPriceCents / 100;
@@ -310,8 +469,14 @@ export default function CheckoutClient() {
   const customerReferralDiscountPct = appliedReferral?.customerDiscountPct || 0;
 
   const customerBaseSubtotal = useMemo(() => {
+    if (isCartMode) {
+      return checkoutLines.reduce(
+        (sum, item) => sum + item.itemPrice * item.quantity,
+        0
+      );
+    }
     return regularUnitPrice * qty;
-  }, [regularUnitPrice, qty]);
+  }, [isCartMode, checkoutLines, regularUnitPrice, qty]);
 
   const customerReferralDiscountAmount = useMemo(() => {
     if (!isCustomerCheckout || !appliedReferral) return 0;
@@ -319,23 +484,28 @@ export default function CheckoutClient() {
   }, [isCustomerCheckout, appliedReferral, customerBaseSubtotal, customerReferralDiscountPct]);
 
   const itemPrice = useMemo(() => {
+    if (isCartMode) return customerBaseSubtotal;
     if (isMechanicCheckout) {
       return mechanicUnitPrice;
     }
     return regularUnitPrice;
-  }, [isMechanicCheckout, mechanicUnitPrice, regularUnitPrice]);
+  }, [isCartMode, customerBaseSubtotal, isMechanicCheckout, mechanicUnitPrice, regularUnitPrice]);
 
   const subtotal = useMemo(() => {
+    if (isCartMode) {
+      return Math.max(0, customerBaseSubtotal - customerReferralDiscountAmount);
+    }
     if (isMechanicCheckout) {
       return mechanicUnitPrice * qty;
     }
     return Math.max(0, customerBaseSubtotal - customerReferralDiscountAmount);
   }, [
+    isCartMode,
+    customerBaseSubtotal,
+    customerReferralDiscountAmount,
     isMechanicCheckout,
     mechanicUnitPrice,
     qty,
-    customerBaseSubtotal,
-    customerReferralDiscountAmount,
   ]);
 
   const mechanicDiscount = useMemo(() => {
@@ -368,8 +538,9 @@ export default function CheckoutClient() {
     province.trim() &&
     postal.trim() &&
     country.trim() &&
-    itemPrice > 0 &&
-    (!isMechanicCheckout || !!mechanicPriceData);
+    subtotal > 0 &&
+    (!isMechanicCheckout || !!mechanicPriceData) &&
+    (!isCartMode || checkoutLines.length > 0);
 
   async function applyReferralCode() {
     if (!referralCodeInput.trim()) return;
@@ -430,9 +601,10 @@ export default function CheckoutClient() {
         },
         body: JSON.stringify({
           orderId: orderId || null,
-          offerId: offerId || null,
-          partType,
-          quantity: qty,
+          quoteId: quoteId || null,
+          offerId: isCartMode ? null : offerId || null,
+          partType: isCartMode ? "Cart Order" : partType,
+          quantity: isCartMode ? null : qty,
           itemPriceCents: Math.round(itemPrice * 100),
           deliveryCents: Math.round(delivery * 100),
           taxCents: Math.round(hst * 100),
@@ -458,6 +630,20 @@ export default function CheckoutClient() {
           utmMedium,
           utmCampaign,
           sourceChannel,
+          items: isCartMode
+            ? checkoutLines.map((item) => ({
+                offerId: item.offerId,
+                partType: item.partType,
+                title: item.title,
+                quantity: item.quantity,
+                itemPriceCents: item.itemPriceCents,
+                year: item.year || null,
+                make: item.make || null,
+                model: item.model || null,
+                engine: item.engine || null,
+                vin: item.vin || null,
+              }))
+            : null,
         }),
       });
 
@@ -489,6 +675,12 @@ export default function CheckoutClient() {
       <h1 className="text-4xl font-black text-slate-900">
         {isMechanicCheckout ? "Mechanic Checkout" : "Checkout"}
       </h1>
+
+      {isCartMode ? (
+        <div className="mt-4 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">
+          You are checking out all items from your cart together.
+        </div>
+      ) : null}
 
       {isMechanicCheckout ? (
         <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
@@ -659,6 +851,12 @@ export default function CheckoutClient() {
             <div className="text-xs font-medium text-slate-600">
               Delivery charge is calculated automatically from your postal code.
             </div>
+
+            {leadSaved ? (
+              <div className="text-xs font-medium text-emerald-700">
+                Your details have been saved so we can help if checkout is interrupted.
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -670,37 +868,71 @@ export default function CheckoutClient() {
               Loading price...
             </div>
           ) : (
-            <div className="mt-4 space-y-2 text-sm font-semibold text-slate-800">
-              {isMechanicCheckout && mechanicPriceData ? (
+            <div className="mt-4 space-y-3 text-sm font-semibold text-slate-800">
+              {isCartMode ? (
                 <>
-                  <div className="flex justify-between">
-                    <span>Regular item price</span>
-                    <span>{money(regularUnitPrice * qty)}</span>
-                  </div>
+                  {checkoutLines.map((item, idx) => (
+                    <div
+                      key={`${item.offerId || item.partType}-${idx}`}
+                      className="rounded-2xl bg-white/50 p-3"
+                    >
+                      <div className="font-bold text-slate-900">{item.title}</div>
+                      <div className="mt-1 text-xs text-slate-600">
+                        {item.partType} • Qty {item.quantity}
+                      </div>
+                      <div className="mt-2 flex justify-between">
+                        <span>Line total</span>
+                        <span>{money(item.itemPrice * item.quantity)}</span>
+                      </div>
+                    </div>
+                  ))}
 
-                  <div className="flex justify-between text-emerald-700">
-                    <span>Mechanic discount</span>
-                    <span>- {money(mechanicDiscount)}</span>
+                  {appliedReferral ? (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Referral discount ({customerReferralDiscountPct}%)</span>
+                      <span>- {money(customerReferralDiscountAmount)}</span>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {isMechanicCheckout && mechanicPriceData ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Regular item price</span>
+                        <span>{money(regularUnitPrice * qty)}</span>
+                      </div>
+
+                      <div className="flex justify-between text-emerald-700">
+                        <span>Mechanic discount</span>
+                        <span>- {money(mechanicDiscount)}</span>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {isCustomerCheckout && appliedReferral ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Regular item price</span>
+                        <span>{money(customerBaseSubtotal)}</span>
+                      </div>
+
+                      <div className="flex justify-between text-emerald-700">
+                        <span>Referral discount ({customerReferralDiscountPct}%)</span>
+                        <span>- {money(customerReferralDiscountAmount)}</span>
+                      </div>
+                    </>
+                  ) : null}
+
+                  <div className="flex justify-between">
+                    <span>Item ({partType})</span>
+                    <span>{money(subtotal)}</span>
                   </div>
                 </>
-              ) : null}
-
-              {isCustomerCheckout && appliedReferral ? (
-                <>
-                  <div className="flex justify-between">
-                    <span>Regular item price</span>
-                    <span>{money(customerBaseSubtotal)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-emerald-700">
-                    <span>Referral discount ({customerReferralDiscountPct}%)</span>
-                    <span>- {money(customerReferralDiscountAmount)}</span>
-                  </div>
-                </>
-              ) : null}
+              )}
 
               <div className="flex justify-between">
-                <span>Item ({partType})</span>
+                <span>Subtotal</span>
                 <span>{money(subtotal)}</span>
               </div>
 

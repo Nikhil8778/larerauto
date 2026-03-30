@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import MechanicOfferActions from "@/components/MechanicOfferActions";
+import { addToCart } from "@/lib/cart";
 
 type BestOffer = {
   offerId: string;
@@ -74,13 +75,7 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
 
   const offer = bestOffer;
 
-  async function saveQuoteAndGo(mode: "cart" | "buy") {
-  if (saving) return;
-  setSaving(true);
-
-  try {
-    console.log("saveQuoteAndGo clicked", { mode });
-
+  async function saveQuote() {
     const dedupeKey = [
       year,
       make,
@@ -92,11 +87,9 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
       utmSource,
       utmMedium,
       utmCampaign,
-      mode,
     ].join("|");
 
     const alreadySaved = sessionStorage.getItem(`quote_saved_${dedupeKey}`);
-    console.log("alreadySaved:", alreadySaved);
 
     if (!alreadySaved) {
       const payload = {
@@ -114,8 +107,6 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
         sourceChannel,
       };
 
-      console.log("POST /api/quotes payload:", payload);
-
       const res = await fetch("/api/quotes", {
         method: "POST",
         headers: {
@@ -124,39 +115,121 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
         body: JSON.stringify(payload),
       });
 
-      console.log("POST /api/quotes status:", res.status);
-
       const data = await res.json().catch(() => null);
-      console.log("POST /api/quotes response:", data);
 
       if (!res.ok) {
-        console.error("Failed to save quote");
-        return;
+        throw new Error(data?.error || "Failed to save quote.");
       }
 
-      sessionStorage.setItem(`quote_saved_${dedupeKey}`, "1");
+      const quoteId = data?.quote?.id || data?.id || null;
+
+      sessionStorage.setItem(
+        `quote_saved_${dedupeKey}`,
+        JSON.stringify({ quoteId })
+      );
+
+      await fetch("/api/quote-leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quoteId,
+          offerId: offer.offerId,
+          year,
+          make,
+          model,
+          engine,
+          partType,
+          vin,
+          itemPriceCents: offer.itemPriceCents,
+          utmSource,
+          utmMedium,
+          utmCampaign,
+          sourceChannel,
+          status: "quote_viewed",
+        }),
+      }).catch(() => null);
+
+      return quoteId;
     }
 
-    const checkoutParams = new URLSearchParams({
-      offerId: offer.offerId,
-      partType: offer.partType,
-      price: String(offer.itemPrice),
-      qty: "1",
-      mode,
-    });
-
-    if (utmSource) checkoutParams.set("utm_source", utmSource);
-    if (utmMedium) checkoutParams.set("utm_medium", utmMedium);
-    if (utmCampaign) checkoutParams.set("utm_campaign", utmCampaign);
-    if (sourceChannel) checkoutParams.set("source_channel", sourceChannel);
-
-    router.push(`/checkout?${checkoutParams.toString()}`);
-  } catch (error) {
-    console.error("saveQuoteAndGo error:", error);
-  } finally {
-    setSaving(false);
+    try {
+      const parsed = JSON.parse(alreadySaved);
+      return parsed?.quoteId || null;
+    } catch {
+      return null;
+    }
   }
-}
+
+  async function handleAddToCart() {
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      await saveQuote();
+
+      addToCart({
+        offerId: offer.offerId,
+        title: offer.title,
+        partType: offer.partType,
+        imageUrl: offer.imageUrl,
+        itemPrice: offer.itemPrice,
+        itemPriceCents: offer.itemPriceCents,
+        currency: offer.currency || "CAD",
+        quantity: 1,
+        year,
+        make,
+        model,
+        engine,
+        vin,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+        sourceChannel,
+      });
+
+      router.push("/cart");
+    } catch (error) {
+      console.error("handleAddToCart error:", error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleBuyNow() {
+    if (saving) return;
+    setSaving(true);
+
+    try {
+      const quoteId = await saveQuote();
+
+      const checkoutParams = new URLSearchParams({
+        offerId: offer.offerId,
+        partType: offer.partType,
+        price: String(offer.itemPrice),
+        qty: "1",
+        mode: "buy",
+      });
+
+      if (quoteId) checkoutParams.set("quoteId", quoteId);
+      if (year) checkoutParams.set("year", year);
+      if (make) checkoutParams.set("make", make);
+      if (model) checkoutParams.set("model", model);
+      if (engine) checkoutParams.set("engine", engine);
+      if (vin) checkoutParams.set("vin", vin);
+      if (utmSource) checkoutParams.set("utm_source", utmSource);
+      if (utmMedium) checkoutParams.set("utm_medium", utmMedium);
+      if (utmCampaign) checkoutParams.set("utm_campaign", utmCampaign);
+      if (sourceChannel) checkoutParams.set("source_channel", sourceChannel);
+
+      router.push(`/checkout?${checkoutParams.toString()}`);
+    } catch (error) {
+      console.error("handleBuyNow error:", error);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -226,7 +299,7 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
           <div className="mt-6 space-y-4">
             <button
               type="button"
-              onClick={() => saveQuoteAndGo("cart")}
+              onClick={handleAddToCart}
               disabled={saving}
               className="flex w-full items-center justify-center rounded-full bg-slate-900 px-6 py-4 text-base font-extrabold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -235,7 +308,7 @@ export default function ResultClient({ bestOffer }: ResultClientProps) {
 
             <button
               type="button"
-              onClick={() => saveQuoteAndGo("buy")}
+              onClick={handleBuyNow}
               disabled={saving}
               className="flex w-full items-center justify-center rounded-full bg-white px-6 py-4 text-base font-extrabold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >

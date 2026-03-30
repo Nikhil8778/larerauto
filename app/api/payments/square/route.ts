@@ -116,6 +116,16 @@ export async function POST(req: Request) {
       },
     });
 
+    await prisma.quoteLead.updateMany({
+      where: {
+        orderId: updatedOrder.id,
+      },
+      data: {
+        customerId: updatedOrder.customerId,
+        status: "paid",
+      },
+    });
+
     await evaluateCustomerMechanicEligibility(updatedOrder.customerId);
 
     console.log("payment referral update check:", {

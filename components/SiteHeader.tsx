@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import CartBadge from "@/components/CartBadge";
 
 const WHATSAPP_NUMBER = "15482558778";
 const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
@@ -83,6 +84,8 @@ export default function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            <CartBadge />
+
             <a
               href={WHATSAPP_LINK}
               target="_blank"
@@ -174,6 +177,10 @@ export default function SiteHeader() {
               </div>
 
               <div className="grid gap-3 pt-1 pb-2">
+                <div onClick={() => setOpen(false)}>
+                  <CartBadge compact />
+                </div>
+
                 <a
                   href={WHATSAPP_LINK}
                   target="_blank"

@@ -16,15 +16,30 @@ async function buildInvoiceNumber() {
   return `${prefix}-${Date.now()}`;
 }
 
+type IncomingCartItem = {
+  offerId?: string | null;
+  partType?: string | null;
+  title?: string | null;
+  quantity?: number | string | null;
+  itemPriceCents?: number | string | null;
+  year?: string | number | null;
+  make?: string | null;
+  model?: string | null;
+  engine?: string | null;
+  vin?: string | null;
+};
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
     const utmSource = body.utmSource ? String(body.utmSource).trim() : null;
     const utmMedium = body.utmMedium ? String(body.utmMedium).trim() : null;
     const utmCampaign = body.utmCampaign ? String(body.utmCampaign).trim() : null;
     const sourceChannel = body.sourceChannel ? String(body.sourceChannel).trim() : "website";
 
     const incomingOrderId = body.orderId ? String(body.orderId).trim() : null;
+    const quoteId = body.quoteId ? String(body.quoteId).trim() : null;
 
     const fullName = String(body.fullName ?? "").trim();
     const email = String(body.email ?? "").trim().toLowerCase();
@@ -36,10 +51,19 @@ export async function POST(req: Request) {
     const postalCode = String(body.postalCode ?? "").trim().toUpperCase();
     const country = String(body.country ?? "Canada").trim();
 
-    const offerId = body.offerId ? String(body.offerId) : null;
-    const partType = String(body.partType ?? "").trim();
-    const quantity = Number(body.quantity ?? 1);
-    const itemPriceCents = Number(body.itemPriceCents ?? 0);
+    const mode = String(body.mode ?? "customer").trim().toLowerCase();
+    const isMechanicCheckout = mode === "mechanic";
+    const isCustomerCheckout = !isMechanicCheckout;
+    const paymentGateway = "square";
+
+    const rawItems: IncomingCartItem[] = Array.isArray(body.items) ? body.items : [];
+    const isCartCheckout = rawItems.length > 0;
+
+    const singleOfferId = body.offerId ? String(body.offerId) : null;
+    const singlePartType = String(body.partType ?? "").trim();
+    const singleQuantity = Number(body.quantity ?? 1);
+    const singleItemPriceCents = Number(body.itemPriceCents ?? 0);
+
     const deliveryCents = Number(body.deliveryCents ?? 0);
     const taxCents = Number(body.taxCents ?? 0);
     const totalCents = Number(body.totalCents ?? 0);
@@ -47,15 +71,10 @@ export async function POST(req: Request) {
       ? String(body.estimatedDeliveryText).trim()
       : null;
 
-    const mode = String(body.mode ?? "customer").trim().toLowerCase();
-    const regularItemPriceCents = Number(body.regularItemPriceCents ?? itemPriceCents);
+    const regularItemPriceCents = Number(body.regularItemPriceCents ?? singleItemPriceCents);
     const mechanicDiscountCents = Number(body.mechanicDiscountCents ?? 0);
 
     const referralCode = body.referralCode ? String(body.referralCode).trim().toUpperCase() : null;
-
-    const isMechanicCheckout = mode === "mechanic";
-    const isCustomerCheckout = !isMechanicCheckout;
-    const paymentGateway = "square";
 
     if (
       !fullName ||
@@ -65,11 +84,6 @@ export async function POST(req: Request) {
       !city ||
       !province ||
       !postalCode ||
-      !partType ||
-      !Number.isFinite(quantity) ||
-      quantity <= 0 ||
-      !Number.isFinite(itemPriceCents) ||
-      itemPriceCents <= 0 ||
       !Number.isFinite(deliveryCents) ||
       deliveryCents < 0 ||
       !Number.isFinite(taxCents) ||
@@ -81,6 +95,21 @@ export async function POST(req: Request) {
         { error: "Missing or invalid checkout fields." },
         { status: 400 }
       );
+    }
+
+    if (!isCartCheckout) {
+      if (
+        !singlePartType ||
+        !Number.isFinite(singleQuantity) ||
+        singleQuantity <= 0 ||
+        !Number.isFinite(singleItemPriceCents) ||
+        singleItemPriceCents <= 0
+      ) {
+        return NextResponse.json(
+          { error: "Missing or invalid item fields." },
+          { status: 400 }
+        );
+      }
     }
 
     let currentMechanic: Awaited<ReturnType<typeof getCurrentMechanic>> = null;
@@ -159,60 +188,140 @@ export async function POST(req: Request) {
       });
     }
 
-    let offerData: {
-      title: string;
-      description: string | null;
-      sku: string | null;
-      partTypeName: string | null;
-      make: string | null;
-      model: string | null;
-      engine: string | null;
-      year: number | null;
-    } = {
-      title: partType,
-      description: null,
-      sku: null,
-      partTypeName: partType,
-      make: null,
-      model: null,
-      engine: null,
-      year: null,
-    };
+    let matchedLead = null;
 
-    if (offerId) {
-      const offer = await prisma.offer.findUnique({
-        where: { id: offerId },
-        include: {
-          part: {
-            include: {
-              partType: true,
-            },
-          },
-          vehicle: {
-            include: {
-              make: true,
-              model: true,
-              engine: true,
-            },
-          },
-        },
+    if (email) {
+      matchedLead = await prisma.quoteLead.findFirst({
+        where: { email },
+        orderBy: { updatedAt: "desc" },
       });
-
-      if (offer) {
-        offerData = {
-          title: offer.part.title,
-          description: offer.part.description ?? null,
-          sku: offer.sourceSku ?? null,
-          partTypeName: offer.part.partType.name,
-          make: offer.vehicle.make.name,
-          model: offer.vehicle.model.name,
-          engine: offer.vehicle.engine.name,
-          year: offer.vehicle.year,
-        };
-      }
     }
 
-    const originalSubtotalCents = itemPriceCents * quantity;
+    if (!matchedLead && phone) {
+      matchedLead = await prisma.quoteLead.findFirst({
+        where: { phone },
+        orderBy: { updatedAt: "desc" },
+      });
+    }
+
+    if (!matchedLead && quoteId) {
+      matchedLead = await prisma.quoteLead.findFirst({
+        where: { quoteId },
+        orderBy: { updatedAt: "desc" },
+      });
+    }
+
+    const checkoutItems = isCartCheckout
+      ? rawItems
+          .map((item) => ({
+            offerId: item.offerId ? String(item.offerId) : null,
+            partType: String(item.partType ?? "").trim(),
+            title: String(item.title ?? item.partType ?? "Item").trim(),
+            quantity: Number(item.quantity ?? 1),
+            itemPriceCents: Number(item.itemPriceCents ?? 0),
+            year:
+              item.year !== undefined && item.year !== null && String(item.year).trim()
+                ? Number(item.year)
+                : null,
+            make: item.make ? String(item.make).trim() : null,
+            model: item.model ? String(item.model).trim() : null,
+            engine: item.engine ? String(item.engine).trim() : null,
+            vin: item.vin ? String(item.vin).trim() : null,
+          }))
+          .filter(
+            (item) =>
+              item.partType &&
+              Number.isFinite(item.quantity) &&
+              item.quantity > 0 &&
+              Number.isFinite(item.itemPriceCents) &&
+              item.itemPriceCents > 0
+          )
+      : [
+          {
+            offerId: singleOfferId,
+            partType: singlePartType,
+            title: singlePartType,
+            quantity: singleQuantity,
+            itemPriceCents: singleItemPriceCents,
+            year: null,
+            make: null,
+            model: null,
+            engine: null,
+            vin: null,
+          },
+        ];
+
+    if (!checkoutItems.length) {
+      return NextResponse.json(
+        { error: "No valid checkout items found." },
+        { status: 400 }
+      );
+    }
+
+    const resolvedItems = [];
+
+    for (const item of checkoutItems) {
+      let resolved = {
+        offerId: item.offerId,
+        title: item.title,
+        description: null as string | null,
+        sku: null as string | null,
+        partTypeName: item.partType,
+        make: item.make,
+        model: item.model,
+        engine: item.engine,
+        year: item.year,
+        quantity: item.quantity,
+        unitPriceCents: item.itemPriceCents,
+        lineTotalCents: item.itemPriceCents * item.quantity,
+        notes: item.vin ? `VIN: ${item.vin}` : null as string | null,
+      };
+
+      if (item.offerId) {
+        const offer = await prisma.offer.findUnique({
+          where: { id: item.offerId },
+          include: {
+            part: {
+              include: {
+                partType: true,
+              },
+            },
+            vehicle: {
+              include: {
+                make: true,
+                model: true,
+                engine: true,
+              },
+            },
+          },
+        });
+
+        if (offer) {
+          resolved = {
+            offerId: item.offerId,
+            title: offer.part.title,
+            description: offer.part.description ?? null,
+            sku: offer.sourceSku ?? null,
+            partTypeName: offer.part.partType.name,
+            make: offer.vehicle.make.name,
+            model: offer.vehicle.model.name,
+            engine: offer.vehicle.engine.name,
+            year: offer.vehicle.year,
+            quantity: item.quantity,
+            unitPriceCents: item.itemPriceCents,
+            lineTotalCents: item.itemPriceCents * item.quantity,
+            notes: item.vin ? `VIN: ${item.vin}` : null,
+          };
+        }
+      }
+
+      resolvedItems.push(resolved);
+    }
+
+    const originalSubtotalCents = resolvedItems.reduce(
+      (sum, item) => sum + item.lineTotalCents,
+      0
+    );
 
     const safeMechanicDiscountCents =
       isMechanicCheckout && Number.isFinite(mechanicDiscountCents) && mechanicDiscountCents >= 0
@@ -222,7 +331,7 @@ export async function POST(req: Request) {
     const safeRegularItemPriceCents =
       Number.isFinite(regularItemPriceCents) && regularItemPriceCents > 0
         ? regularItemPriceCents
-        : itemPriceCents;
+        : singleItemPriceCents;
 
     const safeReferralDiscountCents =
       isCustomerCheckout && validatedReferral?.valid && validatedReferral.referral
@@ -333,57 +442,39 @@ export async function POST(req: Request) {
         },
       });
 
-      const existingItem = existingOrder.items[0];
+      await prisma.orderItem.deleteMany({
+        where: { orderId: existingOrder.id },
+      });
 
-      if (existingItem) {
-        await prisma.orderItem.update({
-          where: { id: existingItem.id },
-          data: {
-            offerId,
-            title: offerData.title,
-            description: offerData.description,
-            sku: offerData.sku,
-            partTypeName: offerData.partTypeName,
-            make: offerData.make,
-            model: offerData.model,
-            engine: offerData.engine,
-            year: offerData.year,
-            quantity,
-            unitPriceCents: Math.round(subtotalCents / quantity),
-            lineTotalCents: subtotalCents,
-            notes:
-              isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
-                ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
-                : mechanicReferralCode
-                ? `Referral code applied: ${mechanicReferralCode}`
-                : null,
-          },
-        });
-      } else {
-        await prisma.orderItem.create({
-          data: {
-            orderId: existingOrder.id,
-            offerId,
-            title: offerData.title,
-            description: offerData.description,
-            sku: offerData.sku,
-            partTypeName: offerData.partTypeName,
-            make: offerData.make,
-            model: offerData.model,
-            engine: offerData.engine,
-            year: offerData.year,
-            quantity,
-            unitPriceCents: Math.round(subtotalCents / quantity),
-            lineTotalCents: subtotalCents,
-            notes:
-              isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
-                ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
-                : mechanicReferralCode
-                ? `Referral code applied: ${mechanicReferralCode}`
-                : null,
-          },
+      if (existingOrder.invoices[0]) {
+        await prisma.invoiceItem.deleteMany({
+          where: { invoiceId: existingOrder.invoices[0].id },
         });
       }
+
+      await prisma.orderItem.createMany({
+        data: resolvedItems.map((item) => ({
+          orderId: updatedOrder.id,
+          offerId: item.offerId,
+          title: item.title,
+          description: item.description,
+          sku: item.sku,
+          partTypeName: item.partTypeName,
+          make: item.make,
+          model: item.model,
+          engine: item.engine,
+          year: item.year,
+          quantity: item.quantity,
+          unitPriceCents: item.unitPriceCents,
+          lineTotalCents: item.lineTotalCents,
+          notes:
+            isMechanicCheckout && safeRegularItemPriceCents > singleItemPriceCents
+              ? `Mechanic pricing applied.`
+              : mechanicReferralCode
+              ? `Referral code applied: ${mechanicReferralCode}`
+              : item.notes,
+        })),
+      });
 
       const existingInvoice = existingOrder.invoices[0];
 
@@ -404,34 +495,16 @@ export async function POST(req: Request) {
           },
         });
 
-        const existingInvoiceItem = await prisma.invoiceItem.findFirst({
-          where: { invoiceId: existingInvoice.id },
-          orderBy: { createdAt: "asc" },
+        await prisma.invoiceItem.createMany({
+          data: resolvedItems.map((item) => ({
+            invoiceId: updatedInvoice.id,
+            title: item.title,
+            description: item.description,
+            quantity: item.quantity,
+            unitPriceCents: item.unitPriceCents,
+            lineTotalCents: item.lineTotalCents,
+          })),
         });
-
-        if (existingInvoiceItem) {
-          await prisma.invoiceItem.update({
-            where: { id: existingInvoiceItem.id },
-            data: {
-              title: offerData.title,
-              description: offerData.description,
-              quantity,
-              unitPriceCents: Math.round(subtotalCents / quantity),
-              lineTotalCents: subtotalCents,
-            },
-          });
-        } else {
-          await prisma.invoiceItem.create({
-            data: {
-              invoiceId: existingInvoice.id,
-              title: offerData.title,
-              description: offerData.description,
-              quantity,
-              unitPriceCents: Math.round(subtotalCents / quantity),
-              lineTotalCents: subtotalCents,
-            },
-          });
-        }
 
         invoiceId = updatedInvoice.id;
         invoiceNumber = updatedInvoice.invoiceNumber;
@@ -455,15 +528,13 @@ export async function POST(req: Request) {
               ? `Mechanic checkout invoice for ${fullName}`
               : `Checkout invoice for ${fullName}`,
             items: {
-              create: [
-                {
-                  title: offerData.title,
-                  description: offerData.description,
-                  quantity,
-                  unitPriceCents: Math.round(subtotalCents / quantity),
-                  lineTotalCents: subtotalCents,
-                },
-              ],
+              create: resolvedItems.map((item) => ({
+                title: item.title,
+                description: item.description,
+                quantity: item.quantity,
+                unitPriceCents: item.unitPriceCents,
+                lineTotalCents: item.lineTotalCents,
+              })),
             },
           },
         });
@@ -513,28 +584,26 @@ export async function POST(req: Request) {
           mechanicReferralCode,
           customerNotes: isMechanicCheckout ? "Mechanic checkout" : "Customer checkout",
           items: {
-            create: [
-              {
-                offerId,
-                title: offerData.title,
-                description: offerData.description,
-                sku: offerData.sku,
-                partTypeName: offerData.partTypeName,
-                make: offerData.make,
-                model: offerData.model,
-                engine: offerData.engine,
-                year: offerData.year,
-                quantity,
-                unitPriceCents: Math.round(subtotalCents / quantity),
-                lineTotalCents: subtotalCents,
-                notes:
-                  isMechanicCheckout && safeRegularItemPriceCents > itemPriceCents
-                    ? `Mechanic pricing applied. Regular item price: ${safeRegularItemPriceCents} cents`
-                    : mechanicReferralCode
-                    ? `Referral code applied: ${mechanicReferralCode}`
-                    : null,
-              },
-            ],
+            create: resolvedItems.map((item) => ({
+              offerId: item.offerId,
+              title: item.title,
+              description: item.description,
+              sku: item.sku,
+              partTypeName: item.partTypeName,
+              make: item.make,
+              model: item.model,
+              engine: item.engine,
+              year: item.year,
+              quantity: item.quantity,
+              unitPriceCents: item.unitPriceCents,
+              lineTotalCents: item.lineTotalCents,
+              notes:
+                isMechanicCheckout && safeRegularItemPriceCents > singleItemPriceCents
+                  ? `Mechanic pricing applied.`
+                  : mechanicReferralCode
+                  ? `Referral code applied: ${mechanicReferralCode}`
+                  : item.notes,
+            })),
           },
         },
       });
@@ -558,15 +627,13 @@ export async function POST(req: Request) {
             ? `Mechanic checkout invoice for ${fullName}`
             : `Checkout invoice for ${fullName}`,
           items: {
-            create: [
-              {
-                title: offerData.title,
-                description: offerData.description,
-                quantity,
-                unitPriceCents: Math.round(subtotalCents / quantity),
-                lineTotalCents: subtotalCents,
-              },
-            ],
+            create: resolvedItems.map((item) => ({
+              title: item.title,
+              description: item.description,
+              quantity: item.quantity,
+              unitPriceCents: item.unitPriceCents,
+              lineTotalCents: item.lineTotalCents,
+            })),
           },
         },
       });
@@ -577,12 +644,45 @@ export async function POST(req: Request) {
       invoiceNumber = createdInvoice.invoiceNumber;
     }
 
+    if (matchedLead) {
+      await prisma.quoteLead.update({
+        where: { id: matchedLead.id },
+        data: {
+          customerId: customer.id,
+          orderId,
+          status: "ordered",
+          firstName,
+          lastName,
+          email,
+          phone,
+          addressLine1,
+          addressLine2: addressLine2 || null,
+          city,
+          province,
+          postalCode,
+          country,
+          offerId: singleOfferId || matchedLead.offerId,
+          quoteId: quoteId || matchedLead.quoteId,
+          partType: singlePartType || matchedLead.partType,
+          itemPriceCents:
+            Number.isFinite(singleItemPriceCents) && singleItemPriceCents > 0
+              ? singleItemPriceCents
+              : matchedLead.itemPriceCents,
+          utmSource,
+          utmMedium,
+          utmCampaign,
+          sourceChannel,
+        },
+      });
+    }
+
     console.log("prepared checkout order:", {
       orderId,
       orderNumber,
       invoiceId,
       invoiceNumber,
       mode,
+      isCartCheckout,
       mechanicId: currentMechanic?.id ?? null,
       mechanicDiscountCents: safeMechanicDiscountCents,
       referralDiscountCents: safeReferralDiscountCents,
@@ -593,6 +693,7 @@ export async function POST(req: Request) {
       utmMedium,
       utmCampaign,
       sourceChannel,
+      itemCount: resolvedItems.length,
     });
 
     return NextResponse.json({

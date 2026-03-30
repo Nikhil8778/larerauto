@@ -269,6 +269,7 @@ model Customer {
   mechanicInviteToken       String?        @unique
   mechanicInviteExpiresAt   DateTime?
   mechanicSignupCompletedAt DateTime?
+  quoteLeads                QuoteLead[]
 
   @@index([email])
   @@index([phone])
@@ -329,6 +330,13 @@ model Order {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   mechanicCommissions   MechanicCommission[]
+  quoteLeads            QuoteLead[]
+  inventoryStatus       String                @default("inventory_check_pending")
+  inventoryCheckedAt    DateTime?
+  inventoryCheckedBy    String?
+  inventoryNotes        String?
+  supplierName          String?
+  supplierReference     String?
 
   @@index([customerId])
   @@index([status])
@@ -347,6 +355,8 @@ model Order {
   @@index([utmMedium])
   @@index([utmCampaign])
   @@index([campaignId])
+  @@index([inventoryStatus])
+  @@index([supplierName])
 }
 
 model OrderItem {
@@ -827,4 +837,53 @@ model MechanicCommission {
   @@index([orderId])
   @@index([status])
   @@index([earnedAt])
+}
+
+model QuoteLead {
+  id             String  @id @default(cuid())
+  quoteId        String?
+  offerId        String?
+  firstName      String?
+  lastName       String?
+  email          String?
+  phone          String?
+  whatsappNumber String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  province       String?
+  postalCode     String?
+  country        String? @default("Canada")
+
+  year           Int?
+  make           String?
+  model          String?
+  engine         String?
+  partType       String?
+  vin            String?
+  itemPriceCents Int?    @default(0)
+
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  sourceChannel String?
+  status        String  @default("quote_viewed") // quote_viewed | checkout_started | contact_captured | ordered | paid | abandoned
+
+  customerId String?
+  orderId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order    Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId])
+  @@index([offerId])
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([utmSource])
+  @@index([utmCampaign])
+  @@index([sourceChannel])
 }
