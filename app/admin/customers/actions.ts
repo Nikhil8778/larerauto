@@ -58,7 +58,7 @@ export async function sendMechanicInvite(customerId: string) {
   inviteExpiresAt.setDate(inviteExpiresAt.getDate() + 7);
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() || "http://localhost:3000";
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() || "http://localhost:3000"; 
 
   const signupUrl = `${baseUrl}/mechanic-signup?token=${inviteToken}`;
 
