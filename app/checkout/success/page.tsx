@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { clearCart } from "@/lib/cart";
 
 function SuccessInner() {
   const sp = useSearchParams();
+
+  useEffect(() => {
+    clearCart();
+  }, []);
 
   const orderId = sp.get("orderId") || "";
   const invoiceId = sp.get("invoiceId") || "";
@@ -61,6 +66,13 @@ function SuccessInner() {
               View Your Invoice
             </Link>
           ) : null}
+
+          <Link
+            href="/catalog"
+            className="rounded-full border border-slate-200 bg-white/70 px-6 py-3 text-sm font-extrabold text-slate-900"
+          >
+            Continue Shopping
+          </Link>
         </div>
       </div>
     </div>

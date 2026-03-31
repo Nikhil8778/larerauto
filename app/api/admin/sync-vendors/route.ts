@@ -4,7 +4,7 @@ import { syncAllVendorPrices } from "@/lib/vendor-sync";
 export async function POST() {
   try {
     const result = await syncAllVendorPrices();
-    return NextResponse.json({ success: true, ...result });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("sync vendors api error", error);
     return NextResponse.json(

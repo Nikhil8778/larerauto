@@ -10,12 +10,6 @@ type SearchParams = Promise<{
   eligible?: string;
 }>;
 
-function shortToken(token: string | null) {
-  if (!token) return "-";
-  if (token.length <= 16) return token;
-  return `${token.slice(0, 10)}...${token.slice(-8)}`;
-}
-
 function badgeTone(value: string | null | undefined) {
   const text = String(value || "").toLowerCase();
 
@@ -174,7 +168,6 @@ export default async function AdminCustomersPage({
               <th className="px-4 py-3 font-semibold">Eligibility</th>
               <th className="px-4 py-3 font-semibold">Invite</th>
               <th className="px-4 py-3 font-semibold">Signup Link</th>
-              <th className="px-4 py-3 font-semibold">Token</th>
               <th className="px-4 py-3 font-semibold">Reply Channel</th>
               <th className="px-4 py-3 font-semibold">Customer Type</th>
               <th className="px-4 py-3 font-semibold">Source</th>
@@ -185,7 +178,7 @@ export default async function AdminCustomersPage({
           <tbody>
             {filteredCustomers.length === 0 ? (
               <tr className="border-t">
-                <td colSpan={14} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={13} className="px-4 py-10 text-center text-slate-500">
                   No customers found.
                 </td>
               </tr>
@@ -270,21 +263,6 @@ export default async function AdminCustomersPage({
                           </a>
                           <div className="break-all text-[11px] text-slate-500">
                             {signupUrl}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">-</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {customer.mechanicInviteToken ? (
-                        <div className="space-y-1">
-                          <div className="text-xs font-semibold text-slate-700">
-                            {shortToken(customer.mechanicInviteToken)}
-                          </div>
-                          <div className="break-all text-[11px] text-slate-500">
-                            {customer.mechanicInviteToken}
                           </div>
                         </div>
                       ) : (
