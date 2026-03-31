@@ -270,6 +270,8 @@ model Customer {
   mechanicInviteExpiresAt   DateTime?
   mechanicSignupCompletedAt DateTime?
   quoteLeads                QuoteLead[]
+  preferredReplyChannel     String?
+  customerType              String? // retail | mechanic_prospect | approved_mechanic
 
   @@index([email])
   @@index([phone])
@@ -286,6 +288,7 @@ model Order {
   status                String                @default("draft")
   paymentStatus         String                @default("pending")
   fulfillmentStatus     String                @default("unfulfilled")
+  deliveryStatus        String                @default("pending")
   currency              String                @default("CAD")
   subtotalCents         Int                   @default(0)
   taxCents              Int                   @default(0)
@@ -319,7 +322,7 @@ model Order {
   referredByMechanic    Mechanic?             @relation("ReferredOrders", fields: [referredByMechanicId], references: [id], onDelete: SetNull)
   referralCode          MechanicReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
   referralDiscountCents Int                   @default(0)
-  customerAccessToken   String                @unique @default(cuid())
+  customerAccessToken   String?               @unique
   utmSource             String?
   utmMedium             String?
   utmCampaign           String?
@@ -331,17 +334,36 @@ model Order {
   updatedAt             DateTime              @updatedAt
   mechanicCommissions   MechanicCommission[]
   quoteLeads            QuoteLead[]
-  inventoryStatus       String                @default("inventory_check_pending")
+
+  inventoryStatus       String    @default("inventory_check_pending")
   inventoryCheckedAt    DateTime?
   inventoryCheckedBy    String?
   inventoryNotes        String?
   supplierName          String?
   supplierReference     String?
+  preferredReplyChannel String?
+  lastCustomerChannel   String?
+  inventoryUpdatedAt    DateTime?
+  customerType          String?
+
+  deliveryNotes     String?
+  courierName       String?
+  trackingReference String?
+  dispatchedAt      DateTime?
+  deliveredAt       DateTime?
+  deliveryUpdatedAt DateTime?
+
+  vendorCostCents    Int     @default(0)
+  transportCostCents Int     @default(0)
+  packagingCostCents Int     @default(0)
+  vendorInvoiceRef   String?
+  payoutNotes        String?
 
   @@index([customerId])
   @@index([status])
   @@index([paymentStatus])
   @@index([fulfillmentStatus])
+  @@index([deliveryStatus])
   @@index([sourceChannel])
   @@index([paymentGateway])
   @@index([paymentReference])
@@ -357,6 +379,9 @@ model Order {
   @@index([campaignId])
   @@index([inventoryStatus])
   @@index([supplierName])
+  @@index([preferredReplyChannel])
+  @@index([customerType])
+  @@index([courierName])
 }
 
 model OrderItem {
@@ -404,7 +429,7 @@ model Invoice {
   paymentReference    String?
   emailSentAt         DateTime?
   transactionId       String?
-  customerAccessToken String    @unique @default(cuid())
+  customerAccessToken String?   @unique
 
   customer  Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   order     Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -869,14 +894,24 @@ model QuoteLead {
   sourceChannel String?
   status        String  @default("quote_viewed") // quote_viewed | checkout_started | contact_captured | ordered | paid | abandoned
 
-  customerId String?
-  orderId    String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  order    Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customerId            String?
+  orderId               String?
+  preferredReplyChannel String?
+  lastInboundChannel    String?
+  lastOutboundChannel   String?
+  quoteLinkSentAt       DateTime?
+  inventoryUpdatedAt    DateTime?
+  customerType          String? // retail | mechanic_prospect | approved_mechanic
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  customer              Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order                 Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  inventoryStatus       String    @default("inventory_check_pending")
+  inventoryCheckedAt    DateTime?
+  inventoryNotes        String?
+  readyToOrderAt        DateTime?
+  checkoutLinkSentAt    DateTime?
+  customerAccessToken   String?   @unique
 
   @@index([quoteId])
   @@index([offerId])
@@ -886,4 +921,7 @@ model QuoteLead {
   @@index([utmSource])
   @@index([utmCampaign])
   @@index([sourceChannel])
+  @@index([preferredReplyChannel])
+  @@index([customerType])
+  @@index([inventoryStatus])
 }

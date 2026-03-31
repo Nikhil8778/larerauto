@@ -5,6 +5,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     console.log("POST /api/quotes body:", body);
+
     const year = Number(body.year || 0);
     const make = String(body.make || "").trim();
     const model = String(body.model || "").trim();

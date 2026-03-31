@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMechanic } from "@/lib/mechanic-auth";
 import { validateReferralCode } from "@/lib/mechanic-referral";
+import {
+  inferCustomerType,
+  inferLastInboundChannel,
+  inferPreferredReplyChannel,
+} from "@/lib/channel-routing";
 
 function buildOrderNumber() {
   return `ORD-${Date.now()}`;
@@ -37,6 +42,10 @@ export async function POST(req: Request) {
     const utmMedium = body.utmMedium ? String(body.utmMedium).trim() : null;
     const utmCampaign = body.utmCampaign ? String(body.utmCampaign).trim() : null;
     const sourceChannel = body.sourceChannel ? String(body.sourceChannel).trim() : "website";
+
+    const preferredReplyChannel = inferPreferredReplyChannel(sourceChannel);
+    const customerType = inferCustomerType(sourceChannel);
+    const lastCustomerChannel = inferLastInboundChannel(sourceChannel);
 
     const incomingOrderId = body.orderId ? String(body.orderId).trim() : null;
     const quoteId = body.quoteId ? String(body.quoteId).trim() : null;
@@ -165,6 +174,8 @@ export async function POST(req: Request) {
           province,
           postalCode,
           country,
+          preferredReplyChannel,
+          customerType,
         },
       });
     } else {
@@ -184,6 +195,8 @@ export async function POST(req: Request) {
           province,
           postalCode,
           country,
+          preferredReplyChannel,
+          customerType,
         },
       });
     }
@@ -411,6 +424,7 @@ export async function POST(req: Request) {
         where: { id: existingOrder.id },
         data: {
           customerId: customer.id,
+          quoteId: quoteId || existingOrder.quoteId,
           subtotalCents,
           taxCents,
           shippingCents: deliveryCents,
@@ -439,6 +453,9 @@ export async function POST(req: Request) {
           referralCodeId,
           mechanicReferralCode,
           customerNotes: isMechanicCheckout ? "Mechanic checkout" : "Customer checkout",
+          preferredReplyChannel,
+          lastCustomerChannel,
+          customerType,
         },
       });
 
@@ -550,6 +567,7 @@ export async function POST(req: Request) {
         data: {
           orderNumber: buildOrderNumber(),
           customerId: customer.id,
+          quoteId: quoteId || null,
           status: "draft",
           paymentStatus: "pending",
           fulfillmentStatus: "unfulfilled",
@@ -583,6 +601,9 @@ export async function POST(req: Request) {
           referralCodeId,
           mechanicReferralCode,
           customerNotes: isMechanicCheckout ? "Mechanic checkout" : "Customer checkout",
+          preferredReplyChannel,
+          lastCustomerChannel,
+          customerType,
           items: {
             create: resolvedItems.map((item) => ({
               offerId: item.offerId,
@@ -672,6 +693,9 @@ export async function POST(req: Request) {
           utmMedium,
           utmCampaign,
           sourceChannel,
+          preferredReplyChannel,
+          customerType,
+          lastInboundChannel: lastCustomerChannel,
         },
       });
     }
@@ -693,6 +717,8 @@ export async function POST(req: Request) {
       utmMedium,
       utmCampaign,
       sourceChannel,
+      preferredReplyChannel,
+      customerType,
       itemCount: resolvedItems.length,
     });
 

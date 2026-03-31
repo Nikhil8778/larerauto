@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  inferCustomerType,
+  inferLastInboundChannel,
+  inferPreferredReplyChannel,
+} from "@/lib/channel-routing";
 
 function emptyToNull(value: unknown) {
   const str = String(value ?? "").trim();
@@ -16,6 +21,7 @@ export async function POST(req: Request) {
     const fullName = String(body.fullName ?? "").trim();
     const email = String(body.email ?? "").trim().toLowerCase();
     const phone = String(body.phone ?? "").trim();
+    const whatsappNumber = String(body.whatsappNumber ?? "").trim();
 
     const addressLine1 = String(body.addressLine1 ?? "").trim();
     const addressLine2 = String(body.addressLine2 ?? "").trim();
@@ -37,6 +43,10 @@ export async function POST(req: Request) {
     const utmCampaign = emptyToNull(body.utmCampaign);
     const sourceChannel = emptyToNull(body.sourceChannel);
     const status = emptyToNull(body.status) || "quote_viewed";
+
+    const preferredReplyChannel = inferPreferredReplyChannel(sourceChannel);
+    const customerType = inferCustomerType(sourceChannel);
+    const lastInboundChannel = inferLastInboundChannel(sourceChannel);
 
     const [firstName, ...rest] = fullName.split(" ");
     const lastName = rest.join(" ").trim() || null;
@@ -71,6 +81,7 @@ export async function POST(req: Request) {
       lastName,
       email: email || null,
       phone: phone || null,
+      whatsappNumber: whatsappNumber || null,
       addressLine1: addressLine1 || null,
       addressLine2: addressLine2 || null,
       city: city || null,
@@ -89,6 +100,13 @@ export async function POST(req: Request) {
       utmCampaign,
       sourceChannel,
       status,
+      preferredReplyChannel,
+      customerType,
+      lastInboundChannel,
+      quoteLinkSentAt:
+        status === "quote_viewed" || status === "contact_captured"
+          ? new Date()
+          : undefined,
     };
 
     const lead = existingLead

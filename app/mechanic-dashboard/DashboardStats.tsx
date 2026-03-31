@@ -8,8 +8,22 @@ type OrderRow = {
   orderNumber: string;
   totalCents: number;
   createdAt: string;
+  updatedAt?: string;
   status: string;
   paymentStatus?: string;
+  inventoryStatus?: string | null;
+  fulfillmentStatus?: string | null;
+  deliveryStatus?: string | null;
+  estimatedDeliveryText?: string | null;
+  inventoryCheckedAt?: string | null;
+  inventoryUpdatedAt?: string | null;
+  inventoryNotes?: string | null;
+  courierName?: string | null;
+  trackingReference?: string | null;
+  dispatchedAt?: string | null;
+  deliveredAt?: string | null;
+  deliveryUpdatedAt?: string | null;
+  deliveryNotes?: string | null;
 };
 
 type StatsPayload = {
@@ -36,6 +50,74 @@ type StatsPayload = {
 
 function money(cents: number) {
   return `$${(cents / 100).toFixed(2)} CAD`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString();
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function inventoryLabel(status?: string | null) {
+  switch ((status || "").toLowerCase()) {
+    case "inventory_confirmed":
+      return "Inventory Confirmed";
+    case "inventory_unavailable":
+      return "Unavailable";
+    case "alternate_offered":
+      return "Alternate Offered";
+    case "inventory_check_pending":
+    default:
+      return "Pending Check";
+  }
+}
+
+function deliveryLabel(status?: string | null) {
+  switch ((status || "").toLowerCase()) {
+    case "packed":
+      return "Packed";
+    case "dispatched":
+      return "Dispatched";
+    case "in_transit":
+      return "In Transit";
+    case "delivered":
+      return "Delivered";
+    case "pending":
+    default:
+      return "Pending";
+  }
+}
+
+function badgeClass(value?: string | null) {
+  const text = String(value || "").toLowerCase();
+  const base =
+    "inline-flex whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold";
+
+  if (text === "paid") return `${base} bg-emerald-100 text-emerald-800`;
+  if (text === "pending") return `${base} bg-amber-100 text-amber-800`;
+
+  if (text === "inventory_confirmed") return `${base} bg-emerald-100 text-emerald-800`;
+  if (text === "inventory_check_pending") return `${base} bg-amber-100 text-amber-800`;
+  if (text === "inventory_unavailable") return `${base} bg-rose-100 text-rose-800`;
+  if (text === "alternate_offered") return `${base} bg-sky-100 text-sky-800`;
+
+  if (text === "packed") return `${base} bg-indigo-100 text-indigo-800`;
+  if (text === "dispatched") return `${base} bg-sky-100 text-sky-800`;
+  if (text === "in_transit") return `${base} bg-amber-100 text-amber-800`;
+  if (text === "delivered") return `${base} bg-emerald-100 text-emerald-800`;
+
+  if (text === "fulfilled") return `${base} bg-emerald-100 text-emerald-800`;
+  if (text === "unfulfilled") return `${base} bg-slate-100 text-slate-700`;
+  if (text === "processing") return `${base} bg-blue-100 text-blue-800`;
+
+  if (text === "confirmed") return `${base} bg-emerald-100 text-emerald-800`;
+  if (text === "draft") return `${base} bg-slate-100 text-slate-700`;
+
+  return `${base} bg-slate-100 text-slate-700`;
 }
 
 export default function DashboardStats() {
@@ -112,9 +194,7 @@ export default function DashboardStats() {
           <div className="mt-2 text-2xl font-bold text-amber-700">
             {money(stats.referral.pendingPayoutCents)}
           </div>
-          <div className="mt-1 text-sm text-gray-600">
-            Weekly Interac due
-          </div>
+          <div className="mt-1 text-sm text-gray-600">Weekly Interac due</div>
         </div>
 
         <div className="rounded-2xl border p-5">
@@ -122,9 +202,7 @@ export default function DashboardStats() {
           <div className="mt-2 text-2xl font-bold text-emerald-700">
             {money(stats.referral.paidPayoutCents)}
           </div>
-          <div className="mt-1 text-sm text-gray-600">
-            Cleared commissions
-          </div>
+          <div className="mt-1 text-sm text-gray-600">Cleared commissions</div>
         </div>
       </div>
 
@@ -147,14 +225,10 @@ export default function DashboardStats() {
                   <tr key={order.id} className="border-b">
                     <td className="py-3 pr-4">{order.orderNumber}</td>
                     <td className="py-3 pr-4">
-                      <span className="inline-flex whitespace-nowrap rounded-full bg-amber-100 px-4 py-1.5 text-xs font-bold text-amber-800">
-                        Awaiting Payment
-                      </span>
+                      <span className={badgeClass("pending")}>Awaiting Payment</span>
                     </td>
                     <td className="py-3 pr-4">{money(order.totalCents)}</td>
-                    <td className="py-3 pr-4">
-                      {new Date(order.createdAt).toLocaleDateString()}
-                    </td>
+                    <td className="py-3 pr-4">{formatDate(order.createdAt)}</td>
                     <td className="py-3 pr-4">
                       <Link
                         href={`/checkout?orderId=${encodeURIComponent(
@@ -186,29 +260,61 @@ export default function DashboardStats() {
               <thead>
                 <tr className="border-b text-left">
                   <th className="py-3 pr-4">Order</th>
-                  <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4">Payment</th>
+                  <th className="py-3 pr-4">Inventory</th>
+                  <th className="py-3 pr-4">Delivery</th>
                   <th className="py-3 pr-4">Total</th>
-                  <th className="py-3 pr-4">Date</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.recentPaidDirectOrders.map((order) => (
-                  <tr key={order.id} className="border-b">
-                    <td className="py-3 pr-4">{order.orderNumber}</td>
+                  <tr key={order.id} className="border-b align-top">
                     <td className="py-3 pr-4">
-                      <span className="inline-flex whitespace-nowrap rounded-full bg-emerald-100 px-4 py-1.5 text-xs font-bold text-emerald-800">
-                        Paid / Confirmed
+                      <div className="font-semibold">{order.orderNumber}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {formatDate(order.createdAt)}
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span className={badgeClass(order.paymentStatus)}>
+                        {order.paymentStatus || "paid"}
                       </span>
                     </td>
-                    <td className="py-3 pr-4">{money(order.totalCents)}</td>
                     <td className="py-3 pr-4">
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      <div className="space-y-2">
+                        <span className={badgeClass(order.inventoryStatus)}>
+                          {inventoryLabel(order.inventoryStatus)}
+                        </span>
+                        <div className="max-w-[220px] text-xs text-gray-600">
+                          {order.inventoryNotes || "No inventory update yet."}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Checked: {formatDateTime(order.inventoryCheckedAt)}
+                        </div>
+                      </div>
                     </td>
+                    <td className="py-3 pr-4">
+                      <div className="space-y-2">
+                        <span className={badgeClass(order.deliveryStatus)}>
+                          {deliveryLabel(order.deliveryStatus)}
+                        </span>
+                        <div className="text-xs text-gray-500">
+                          ETA: {order.estimatedDeliveryText || "To be updated"}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Tracking: {order.trackingReference || "—"}
+                        </div>
+                        <div className="max-w-[220px] text-xs text-gray-600">
+                          {order.deliveryNotes || "No delivery notes yet."}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4">{money(order.totalCents)}</td>
                   </tr>
                 ))}
                 {!stats.recentPaidDirectOrders.length && (
                   <tr>
-                    <td colSpan={4} className="py-4 text-gray-500">
+                    <td colSpan={5} className="py-4 text-gray-500">
                       No paid direct orders yet.
                     </td>
                   </tr>
@@ -226,25 +332,52 @@ export default function DashboardStats() {
             <thead>
               <tr className="border-b text-left">
                 <th className="py-3 pr-4">Order</th>
-                <th className="py-3 pr-4">Status</th>
+                <th className="py-3 pr-4">Payment</th>
+                <th className="py-3 pr-4">Inventory</th>
+                <th className="py-3 pr-4">Delivery</th>
                 <th className="py-3 pr-4">Total</th>
                 <th className="py-3 pr-4">Date</th>
               </tr>
             </thead>
             <tbody>
               {stats.recentReferredOrders.map((order) => (
-                <tr key={order.id} className="border-b">
+                <tr key={order.id} className="border-b align-top">
                   <td className="py-3 pr-4">{order.orderNumber}</td>
-                  <td className="py-3 pr-4">{order.status}</td>
-                  <td className="py-3 pr-4">{money(order.totalCents)}</td>
                   <td className="py-3 pr-4">
-                    {new Date(order.createdAt).toLocaleDateString()}
+                    <span className={badgeClass(order.paymentStatus)}>
+                      {order.paymentStatus || order.status}
+                    </span>
                   </td>
+                  <td className="py-3 pr-4">
+                    <div className="space-y-2">
+                      <span className={badgeClass(order.inventoryStatus)}>
+                        {inventoryLabel(order.inventoryStatus)}
+                      </span>
+                      <div className="max-w-[220px] text-xs text-gray-600">
+                        {order.inventoryNotes || "No inventory update yet."}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <div className="space-y-2">
+                      <span className={badgeClass(order.deliveryStatus)}>
+                        {deliveryLabel(order.deliveryStatus)}
+                      </span>
+                      <div className="text-xs text-gray-500">
+                        Tracking: {order.trackingReference || "—"}
+                      </div>
+                      <div className="max-w-[220px] text-xs text-gray-600">
+                        {order.deliveryNotes || "No delivery notes yet."}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 pr-4">{money(order.totalCents)}</td>
+                  <td className="py-3 pr-4">{formatDate(order.createdAt)}</td>
                 </tr>
               ))}
               {!stats.recentReferredOrders.length && (
                 <tr>
-                  <td colSpan={4} className="py-4 text-gray-500">
+                  <td colSpan={6} className="py-4 text-gray-500">
                     No referred orders yet.
                   </td>
                 </tr>

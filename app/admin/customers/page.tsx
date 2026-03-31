@@ -1,8 +1,14 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { sendMechanicInvite } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<{
+  reply?: string;
+  customerType?: string;
+  source?: string;
+  eligible?: string;
+}>;
 
 function shortToken(token: string | null) {
   if (!token) return "-";
@@ -10,7 +16,32 @@ function shortToken(token: string | null) {
   return `${token.slice(0, 10)}...${token.slice(-8)}`;
 }
 
-export default async function AdminCustomersPage() {
+function badgeTone(value: string | null | undefined) {
+  const text = String(value || "").toLowerCase();
+
+  if (text === "whatsapp") return "bg-emerald-100 text-emerald-700";
+  if (text === "email") return "bg-sky-100 text-sky-700";
+  if (text === "platform") return "bg-violet-100 text-violet-700";
+  if (text === "dashboard") return "bg-amber-100 text-amber-700";
+  if (text === "approved_mechanic") return "bg-amber-100 text-amber-700";
+  if (text === "mechanic_prospect") return "bg-violet-100 text-violet-700";
+  if (text === "retail") return "bg-slate-100 text-slate-700";
+
+  return "bg-slate-100 text-slate-700";
+}
+
+export default async function AdminCustomersPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
+
+  const reply = sp.reply?.trim() || "";
+  const customerType = sp.customerType?.trim() || "";
+  const source = sp.source?.trim() || "";
+  const eligible = sp.eligible?.trim() || "";
+
   const now = new Date();
   const start = new Date(now);
   start.setDate(start.getDate() - 30);
@@ -40,6 +71,27 @@ export default async function AdminCustomersPage() {
     orderBy: { updatedAt: "desc" },
   });
 
+  const filteredCustomers = customers.filter((customer) => {
+    const paidOrdersLast30 = customer.orders.filter(
+      (order) =>
+        order.createdAt >= start &&
+        ["paid", "completed"].includes((order.paymentStatus || "").toLowerCase())
+    );
+
+    const isEligible =
+      customer.isMechanicEligible || paidOrdersLast30.length >= 2;
+
+    const sourceValue = customer.convertedWorkshopLead ? "outreach_conversion" : "direct";
+
+    if (reply && customer.preferredReplyChannel !== reply) return false;
+    if (customerType && customer.customerType !== customerType) return false;
+    if (source && sourceValue !== source) return false;
+    if (eligible === "yes" && !isEligible) return false;
+    if (eligible === "no" && isEligible) return false;
+
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -47,6 +99,66 @@ export default async function AdminCustomersPage() {
         <p className="mt-2 text-sm font-medium text-slate-600">
           Customer CRM with outreach conversion visibility and repeat-buyer tracking.
         </p>
+
+        <form className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <select
+            name="reply"
+            defaultValue={reply}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="">All Reply Channels</option>
+            <option value="email">email</option>
+            <option value="whatsapp">whatsapp</option>
+            <option value="platform">platform</option>
+            <option value="dashboard">dashboard</option>
+          </select>
+
+          <select
+            name="customerType"
+            defaultValue={customerType}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="">All Customer Types</option>
+            <option value="retail">retail</option>
+            <option value="mechanic_prospect">mechanic_prospect</option>
+            <option value="approved_mechanic">approved_mechanic</option>
+          </select>
+
+          <select
+            name="source"
+            defaultValue={source}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="">All Sources</option>
+            <option value="direct">direct</option>
+            <option value="outreach_conversion">outreach_conversion</option>
+          </select>
+
+          <select
+            name="eligible"
+            defaultValue={eligible}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          >
+            <option value="">All Eligibility</option>
+            <option value="yes">eligible</option>
+            <option value="no">not eligible</option>
+          </select>
+
+          <div className="md:col-span-2 xl:col-span-4 flex gap-3">
+            <button
+              type="submit"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+            >
+              Apply Filters
+            </button>
+            <a
+              href="/admin/customers"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700"
+            >
+              Reset
+            </a>
+          </div>
+        </form>
       </div>
 
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
@@ -63,20 +175,22 @@ export default async function AdminCustomersPage() {
               <th className="px-4 py-3 font-semibold">Invite</th>
               <th className="px-4 py-3 font-semibold">Signup Link</th>
               <th className="px-4 py-3 font-semibold">Token</th>
+              <th className="px-4 py-3 font-semibold">Reply Channel</th>
+              <th className="px-4 py-3 font-semibold">Customer Type</th>
               <th className="px-4 py-3 font-semibold">Source</th>
               <th className="px-4 py-3 font-semibold">Action</th>
             </tr>
           </thead>
 
           <tbody>
-            {customers.length === 0 ? (
+            {filteredCustomers.length === 0 ? (
               <tr className="border-t">
-                <td colSpan={12} className="px-4 py-10 text-center text-slate-500">
-                  No customers yet.
+                <td colSpan={14} className="px-4 py-10 text-center text-slate-500">
+                  No customers found.
                 </td>
               </tr>
             ) : (
-              customers.map((customer) => {
+              filteredCustomers.map((customer) => {
                 const paidOrdersLast30 = customer.orders.filter(
                   (order) =>
                     order.createdAt >= start &&
@@ -173,6 +287,34 @@ export default async function AdminCustomersPage() {
                             {customer.mechanicInviteToken}
                           </div>
                         </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {customer.preferredReplyChannel ? (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${badgeTone(
+                            customer.preferredReplyChannel
+                          )}`}
+                        >
+                          {customer.preferredReplyChannel}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {customer.customerType ? (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${badgeTone(
+                            customer.customerType
+                          )}`}
+                        >
+                          {customer.customerType}
+                        </span>
                       ) : (
                         <span className="text-xs text-slate-400">-</span>
                       )}

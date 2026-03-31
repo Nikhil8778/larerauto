@@ -8,6 +8,42 @@ function moneyFromCents(cents: number, currency = "CAD") {
   });
 }
 
+function formatDateTime(date: Date | null | undefined) {
+  if (!date) return "—";
+  return new Date(date).toLocaleString("en-CA");
+}
+
+function deliveryLabel(status: string | null | undefined) {
+  switch ((status || "").toLowerCase()) {
+    case "packed":
+      return "Packed";
+    case "dispatched":
+      return "Dispatched";
+    case "in_transit":
+      return "In Transit";
+    case "delivered":
+      return "Delivered";
+    case "pending":
+    default:
+      return "Pending";
+  }
+}
+
+function badgeClass(value: string | null | undefined) {
+  const text = String(value || "").toLowerCase();
+  const base =
+    "inline-flex rounded-full px-3 py-1 text-xs font-bold whitespace-nowrap";
+
+  if (text === "paid") return `${base} bg-emerald-100 text-emerald-800`;
+  if (text === "pending") return `${base} bg-amber-100 text-amber-800`;
+  if (text === "packed") return `${base} bg-indigo-100 text-indigo-800`;
+  if (text === "dispatched") return `${base} bg-sky-100 text-sky-800`;
+  if (text === "in_transit") return `${base} bg-amber-100 text-amber-800`;
+  if (text === "delivered") return `${base} bg-emerald-100 text-emerald-800`;
+
+  return `${base} bg-slate-100 text-slate-700`;
+}
+
 export default async function CustomerInvoicePage({
   params,
   searchParams,
@@ -78,11 +114,7 @@ export default async function CustomerInvoicePage({
             <div className="mt-4 space-y-2 text-sm font-semibold text-slate-800">
               <div className="flex justify-between">
                 <span>Paid At</span>
-                <span>
-                  {invoice.paidAt
-                    ? new Date(invoice.paidAt).toLocaleString("en-CA")
-                    : "-"}
-                </span>
+                <span>{formatDateTime(invoice.paidAt)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Reference</span>
@@ -91,6 +123,54 @@ export default async function CustomerInvoicePage({
             </div>
           </div>
         </div>
+
+        {invoice.order ? (
+          <div className="mt-6 rounded-2xl bg-white/60 p-5">
+            <h2 className="text-lg font-black text-slate-900">Delivery Tracking</h2>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+                <div className="text-sm font-bold text-slate-700">Delivery Status</div>
+                <div className="mt-2">
+                  <span className={badgeClass(invoice.order.deliveryStatus)}>
+                    {deliveryLabel(invoice.order.deliveryStatus)}
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm text-slate-700">
+                  <div className="flex justify-between gap-3">
+                    <span>Courier</span>
+                    <span>{invoice.order.courierName || "—"}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Tracking Ref</span>
+                    <span>{invoice.order.trackingReference || "—"}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Dispatched</span>
+                    <span>{formatDateTime(invoice.order.dispatchedAt)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Delivered</span>
+                    <span>{formatDateTime(invoice.order.deliveredAt)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Last Updated</span>
+                    <span>{formatDateTime(invoice.order.deliveryUpdatedAt)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+                <div className="text-sm font-bold text-slate-700">Delivery Notes</div>
+                <div className="mt-3 text-sm text-slate-700">
+                  {invoice.order.deliveryNotes ||
+                    "No delivery notes yet. We will continue to keep you updated."}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-6 rounded-2xl bg-white/60 p-5">
           <h2 className="text-lg font-black text-slate-900">Invoice Items</h2>
