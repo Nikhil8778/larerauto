@@ -1,4 +1,4 @@
-export type WorkshopScrapeInput = {
+export type WorkshopLeadScrapeInput = {
   shopName: string;
   contactName?: string | null;
   phone?: string | null;
@@ -15,31 +15,26 @@ export type WorkshopScrapeInput = {
   reviewCount?: number | null;
   source?: string | null;
   notes?: string | null;
-  scrapedAt?: string | Date | null;
+  scrapedAt?: Date | string | null;
 };
 
-export type WorkshopScrapePayload = {
-  leads: WorkshopScrapeInput[];
-  defaults?: {
-    city?: string;
-    province?: string;
-    category?: string;
-    source?: string;
-  };
+export type WorkshopScrapeRequest = {
+  city?: string;
+  province?: string;
+  category?: string;
+  query?: string;
+  pages?: number;
+  source?: string;
 };
 
-export type WorkshopScrapeResultRow = {
-  shopName: string;
-  status: "created" | "updated" | "skipped";
-  leadId?: string;
-  reason?: string;
-};
-
-export type WorkshopScrapeSummary = {
-  ok: true;
-  received: number;
+export type WorkshopScrapeSaveResult = {
   created: number;
   updated: number;
   skipped: number;
-  results: WorkshopScrapeResultRow[];
+  total: number;
+  items: Array<{
+    shopName: string;
+    status: "created" | "updated" | "skipped";
+    reason?: string;
+  }>;
 };
