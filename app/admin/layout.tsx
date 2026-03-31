@@ -32,6 +32,7 @@ const navGroups = [
       { href: "/admin/outreach/templates", label: "Templates" },
       { href: "/admin/outreach/campaigns", label: "Campaigns" },
       { href: "/admin/outreach/history", label: "Message History" },
+      { href: "/admin/outreach/scrape", label: "Scrape Leads" },
     ],
   },
   {

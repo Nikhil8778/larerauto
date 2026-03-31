@@ -9,7 +9,60 @@ import type {
 
 const ZENROWS_API_KEY = process.env.ZENROWS_API_KEY;
 
-function buildZenRowsUrl(targetUrl: string, jsRender = false) {
+function cleanText(value: string | undefined | null) {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizePhone(value: string | undefined | null) {
+  const raw = cleanText(value);
+  if (!raw) return null;
+
+  const normalized = raw.replace(/[^\d+]/g, "");
+  if (!normalized) return null;
+
+  if (normalized.startsWith("+")) return normalized;
+  if (normalized.length === 10) return normalized;
+  if (normalized.length === 11 && normalized.startsWith("1")) return `+${normalized}`;
+
+  return normalized;
+}
+
+function parsePhoneFromText(text: string) {
+  const match = text.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
+  return match ? normalizePhone(match[0]) : null;
+}
+
+function parseRating(text: string) {
+  const match =
+    text.match(/([0-9](?:\.[0-9])?)\s*(?:stars?|star|\/\s*5)/i) ||
+    text.match(/rated\s*([0-9](?:\.[0-9])?)/i);
+
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseReviewCount(text: string) {
+  const match = text.match(/\(?([\d,]+)\)?\s*reviews?/i);
+  if (!match) return null;
+
+  const value = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(value) ? value : null;
+}
+
+function absoluteUrl(url: string | undefined | null, base = "https://www.yellowpages.ca") {
+  const value = cleanText(url);
+  if (!value) return null;
+
+  try {
+    return new URL(value, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildZenRowsUrl(targetUrl: string, jsRender = true) {
   if (!ZENROWS_API_KEY) {
     throw new Error("ZENROWS_API_KEY is missing.");
   }
@@ -24,7 +77,7 @@ function buildZenRowsUrl(targetUrl: string, jsRender = false) {
   return `https://api.zenrows.com/v1/?${params.toString()}`;
 }
 
-async function fetchViaZenRows(targetUrl: string, jsRender = false) {
+async function fetchViaZenRows(targetUrl: string, jsRender = true) {
   const url = buildZenRowsUrl(targetUrl, jsRender);
 
   const res = await fetch(url, {
@@ -33,46 +86,52 @@ async function fetchViaZenRows(targetUrl: string, jsRender = false) {
   });
 
   if (!res.ok) {
-    throw new Error(`ZenRows request failed with ${res.status}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(`ZenRows request failed (${res.status}): ${body || "Unknown error"}`);
   }
 
   return res.text();
 }
 
-function cleanText(value: string | undefined | null) {
-  return (value ?? "").replace(/\s+/g, " ").trim();
-}
+function dedupeLeads(leads: WorkshopLeadScrapeInput[]) {
+  const seen = new Set<string>();
+  const result: WorkshopLeadScrapeInput[] = [];
 
-function parsePhone(text: string) {
-  const m = text.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
-  return m ? cleanText(m[0]) : null;
-}
+  for (const lead of leads) {
+    const key = [
+      String(lead.shopName || "").toLowerCase().trim(),
+      String(lead.phone || "").toLowerCase().trim(),
+      String(lead.city || "").toLowerCase().trim(),
+    ].join("|");
 
-function parseRating(text: string) {
-  const m = text.match(/([0-9]\.?[0-9]?)\s*(?:stars?|star|\/5)/i);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : null;
-}
+    if (!lead.shopName?.trim()) continue;
+    if (seen.has(key)) continue;
 
-function parseReviewCount(text: string) {
-  const m = text.match(/\(?([\d,]+)\)?\s*reviews?/i);
-  if (!m) return null;
-  const n = Number(m[1].replace(/,/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-function extractDomainWebsite(text: string) {
-  const m = text.match(
-    /\b(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?\b/
-  );
-  if (!m) return null;
-
-  let url = m[0].trim();
-  if (!/^https?:\/\//i.test(url)) {
-    url = `https://${url}`;
+    seen.add(key);
+    result.push(lead);
   }
-  return url;
+
+  return result;
+}
+
+function buildYellowPagesSearchUrls(input: {
+  city: string;
+  province: string;
+  query: string;
+  pages: number;
+}) {
+  const urls: string[] = [];
+  const location = `${input.city}, ${input.province}`;
+
+  for (let page = 1; page <= input.pages; page += 1) {
+    urls.push(
+      `https://www.yellowpages.ca/search/si/${page}/${encodeURIComponent(
+        input.query
+      )}/${encodeURIComponent(location)}`
+    );
+  }
+
+  return urls;
 }
 
 function parseYellowPagesListings(
@@ -87,29 +146,46 @@ function parseYellowPagesListings(
   const $ = cheerio.load(html);
   const leads: WorkshopLeadScrapeInput[] = [];
 
-  $(".listing, .result, .search-result, .listing__content").each((_, el) => {
+  const listingSelectors = [
+    ".listing",
+    ".listing__content",
+    ".result",
+    ".search-result",
+    ".listing__result",
+    "[data-business-id]",
+  ];
+
+  const nodes = $(listingSelectors.join(","));
+
+  nodes.each((_, el) => {
     const node = $(el);
 
     const shopName =
       cleanText(node.find("h2").first().text()) ||
       cleanText(node.find("h3").first().text()) ||
       cleanText(node.find(".listing__name").first().text()) ||
-      cleanText(node.find(".business-name").first().text());
+      cleanText(node.find(".business-name").first().text()) ||
+      cleanText(node.find("[itemprop='name']").first().text());
 
     if (!shopName) return;
 
     const fullText = cleanText(node.text());
 
     const phone =
-      cleanText(node.find('a[href^="tel:"]').first().text()) || parsePhone(fullText);
+      normalizePhone(node.find('a[href^="tel:"]').first().text()) ||
+      parsePhoneFromText(fullText);
 
-    const websiteHref =
-      node.find('a[href*="http"]').first().attr("href") ||
-      extractDomainWebsite(fullText);
+    const website =
+      absoluteUrl(node.find('a[href*="http"]').first().attr("href")) ||
+      absoluteUrl(node.find(".mlr__item--website a").first().attr("href"));
 
     const addressLine1 =
       cleanText(node.find(".listing__address").first().text()) ||
-      cleanText(node.find(".street-address").first().text());
+      cleanText(node.find(".street-address").first().text()) ||
+      cleanText(node.find("[itemprop='address']").first().text());
+
+    const googleMapsUrl =
+      absoluteUrl(node.find('a[href*="maps"]').first().attr("href")) || null;
 
     const rating =
       parseRating(
@@ -122,60 +198,22 @@ function parseYellowPagesListings(
     leads.push({
       shopName,
       phone,
-      website: websiteHref || null,
+      whatsappNumber: phone,
+      website,
       addressLine1,
       city: defaults.city,
       province: defaults.province,
+      googleMapsUrl,
       category: defaults.category,
       rating,
       reviewCount,
       source: defaults.source,
-      notes: "Imported via ZenRows body shop scrape.",
+      notes: "Imported via ZenRows directory scrape.",
       scrapedAt: new Date(),
     });
   });
 
   return dedupeLeads(leads);
-}
-
-function dedupeLeads(leads: WorkshopLeadScrapeInput[]) {
-  const seen = new Set<string>();
-  const out: WorkshopLeadScrapeInput[] = [];
-
-  for (const lead of leads) {
-    const key = [
-      String(lead.shopName || "").toLowerCase().trim(),
-      String(lead.phone || "").toLowerCase().trim(),
-      String(lead.city || "").toLowerCase().trim(),
-    ].join("|");
-
-    if (!lead.shopName || seen.has(key)) continue;
-    seen.add(key);
-    out.push(lead);
-  }
-
-  return out;
-}
-
-function buildYellowPagesSearchUrls(input: {
-  city: string;
-  province: string;
-  category: string;
-  pages: number;
-}) {
-  const urls: string[] = [];
-  const location = `${input.city}, ${input.province}`;
-  const what = input.category;
-
-  for (let page = 1; page <= input.pages; page += 1) {
-    const url = new URL("https://www.yellowpages.ca/search/si/1/");
-    url.pathname = `/search/si/${page}/${encodeURIComponent(what)}/${encodeURIComponent(
-      location
-    )}`;
-    urls.push(url.toString());
-  }
-
-  return urls;
 }
 
 export async function POST(req: NextRequest) {
@@ -189,16 +227,18 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as WorkshopScrapeRequest;
 
-    const city = String(body.city || "Greater Sudbury").trim();
-    const province = String(body.province || "Ontario").trim();
-    const category = String(body.category || "Body Shop").trim();
-    const pages = Math.max(1, Math.min(Number(body.pages || 2), 10));
-    const source = String(body.source || "zenrows_yellowpages").trim();
+    const city = cleanText(body.city) || "Greater Sudbury";
+    const province = cleanText(body.province) || "Ontario";
+    const category = cleanText(body.category) || "Body Shop";
+    const query = cleanText(body.query) || "auto body shop";
+    const pagesRaw = Number(body.pages ?? 2);
+    const pages = Number.isFinite(pagesRaw) ? Math.max(1, Math.min(10, pagesRaw)) : 2;
+    const source = cleanText(body.source) || "zenrows_yellowpages";
 
     const urls = buildYellowPagesSearchUrls({
       city,
       province,
-      category: body.query?.trim() || `${category}`,
+      query,
       pages,
     });
 
@@ -206,7 +246,6 @@ export async function POST(req: NextRequest) {
 
     for (const url of urls) {
       const html = await fetchViaZenRows(url, true);
-
       const parsed = parseYellowPagesListings(html, {
         city,
         province,
@@ -228,23 +267,33 @@ export async function POST(req: NextRequest) {
     };
 
     for (const lead of deduped) {
-      const status = await upsertWorkshopLead(lead);
+      try {
+        const status = await upsertWorkshopLead(lead);
 
-      if (status === "created") result.created += 1;
-      if (status === "updated") result.updated += 1;
-      if (status === "skipped") result.skipped += 1;
+        if (status === "created") result.created += 1;
+        if (status === "updated") result.updated += 1;
+        if (status === "skipped") result.skipped += 1;
 
-      result.items.push({
-        shopName: lead.shopName,
-        status,
-      });
+        result.items.push({
+          shopName: lead.shopName,
+          status,
+        });
+      } catch (error) {
+        result.skipped += 1;
+        result.items.push({
+          shopName: lead.shopName,
+          status: "skipped",
+          reason: error instanceof Error ? error.message : "Save failed",
+        });
+      }
     }
 
     return NextResponse.json({
       ok: true,
-      query: body.query || category,
+      query,
       city,
       province,
+      category,
       pages,
       ...result,
     });
@@ -259,4 +308,11 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    message: "Use POST to scrape and save workshop leads.",
+  });
 }
