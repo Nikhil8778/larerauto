@@ -39,6 +39,26 @@ function cleanDate(value: unknown) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function normalizeSourceToPlatform(source: string | null) {
+  const s = String(source || "").trim().toLowerCase();
+
+  if (!s) return null;
+  if (s === "google_business" || s === "zenrows_google_business") {
+    return "zenrows_google_business";
+  }
+  if (s === "facebook_page" || s === "zenrows_facebook_page") {
+    return "zenrows_facebook_page";
+  }
+  if (s === "yelp" || s === "zenrows_yelp") {
+    return "zenrows_yelp";
+  }
+  if (s === "yellowpages" || s === "zenrows_yellowpages") {
+    return "zenrows_yellowpages";
+  }
+
+  return s;
+}
+
 async function findExistingLead(input: {
   shopName: string;
   city?: string | null;
@@ -109,11 +129,15 @@ export async function upsertWorkshopLead(
     return "skipped";
   }
 
+  const normalizedSource = cleanText(input.source) || "zenrows";
+  const normalizedPlatform =
+    cleanText(input.scrapePlatform) || normalizeSourceToPlatform(normalizedSource);
+
   const preNormalized = {
     shopName,
     contactName: cleanText(input.contactName),
     phone: cleanPhone(input.phone),
-    whatsappNumber: cleanPhone(input.whatsappNumber),
+    whatsappNumber: cleanPhone(input.whatsappNumber) || cleanPhone(input.phone),
     email: cleanEmail(input.email),
     website: cleanText(input.website),
     addressLine1: cleanText(input.addressLine1),
@@ -124,21 +148,20 @@ export async function upsertWorkshopLead(
     category: cleanText(input.category),
     rating: cleanNumber(input.rating),
     reviewCount: cleanNumber(input.reviewCount),
-    source: cleanText(input.source) || "zenrows",
+    source: normalizedSource,
     notes: cleanText(input.notes),
     scrapedAt: cleanDate(input.scrapedAt) || new Date(),
 
-    scrapePlatform: cleanText(input.scrapePlatform),
+    scrapePlatform: normalizedPlatform,
     scrapeQuery: cleanText(input.scrapeQuery),
-    contactQuality: cleanText(input.contactQuality) as
-      | "high"
-      | "medium"
-      | "low"
-      | null,
+    contactQuality: input.contactQuality ?? null,
     leadScore: cleanNumber(input.leadScore),
-    phoneSource: cleanText(input.phoneSource),
+    phoneSource: cleanText(input.phoneSource) || "directory",
     isVirtualPhone:
-      typeof input.isVirtualPhone === "boolean" ? input.isVirtualPhone : null,
+      typeof input.isVirtualPhone === "boolean"
+        ? input.isVirtualPhone
+        : normalizedPlatform === "zenrows_yellowpages" ||
+          normalizedPlatform === "zenrows_yelp",
     outreachGoal: cleanText(input.outreachGoal),
     adminNotes: cleanText(input.adminNotes),
 
@@ -149,11 +172,7 @@ export async function upsertWorkshopLead(
     hasMessengerLink:
       typeof input.hasMessengerLink === "boolean" ? input.hasMessengerLink : false,
     websiteContactUrl: cleanText(input.websiteContactUrl),
-    authenticityTier: cleanText(input.authenticityTier) as
-      | "high"
-      | "medium"
-      | "low"
-      | null,
+    authenticityTier: input.authenticityTier ?? null,
   };
 
   const channelFlags = classifyLeadChannels({
@@ -184,14 +203,27 @@ export async function upsertWorkshopLead(
 
   const normalized = {
     ...preNormalized,
-    bestContactChannel: channelFlags.bestContactChannel,
-    isWhatsappQuality: channelFlags.isWhatsappQuality,
-    isCallOnly: channelFlags.isCallOnly,
-    isEmailQuality: channelFlags.isEmailQuality,
-    isSocialOnly: channelFlags.isSocialOnly,
+    bestContactChannel: input.bestContactChannel || channelFlags.bestContactChannel,
+    isWhatsappQuality:
+      typeof input.isWhatsappQuality === "boolean"
+        ? input.isWhatsappQuality
+        : channelFlags.isWhatsappQuality,
+    isCallOnly:
+      typeof input.isCallOnly === "boolean"
+        ? input.isCallOnly
+        : channelFlags.isCallOnly,
+    isEmailQuality:
+      typeof input.isEmailQuality === "boolean"
+        ? input.isEmailQuality
+        : channelFlags.isEmailQuality,
+    isSocialOnly:
+      typeof input.isSocialOnly === "boolean"
+        ? input.isSocialOnly
+        : channelFlags.isSocialOnly,
     leadScore: preNormalized.leadScore ?? authenticity.leadScore,
     contactQuality: preNormalized.contactQuality ?? authenticity.contactQuality,
-    authenticityTier: preNormalized.authenticityTier ?? authenticity.authenticityTier,
+    authenticityTier:
+      preNormalized.authenticityTier ?? authenticity.authenticityTier,
   };
 
   const existing = await findExistingLead({
