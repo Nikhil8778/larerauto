@@ -6,10 +6,25 @@ import type {
   WorkshopScrapeRequest,
   WorkshopScrapeSaveResult,
 } from "@/lib/outreach/workshop-scrape-types";
+import {
+  buildGoogleBusinessSearchUrls,
+  parseGoogleBusinessListings,
+} from "@/lib/outreach/scrapers/google-business";
+import {
+  buildFacebookPageSearchUrls,
+  parseFacebookPageListings,
+} from "@/lib/outreach/scrapers/facebook-page";
+import { classifyLeadChannels } from "@/lib/outreach/lead-channel-buckets";
+import { evaluateLeadAuthenticity } from "@/lib/outreach/lead-authenticity";
 
 const ZENROWS_API_KEY = process.env.ZENROWS_API_KEY;
 
-const SUPPORTED_SOURCES = ["zenrows_yellowpages", "zenrows_yelp"] as const;
+const SUPPORTED_SOURCES = [
+  "zenrows_yellowpages",
+  "zenrows_yelp",
+  "zenrows_google_business",
+  "zenrows_facebook_page",
+] as const;
 
 function cleanText(value: string | undefined | null) {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -126,12 +141,15 @@ function dedupeLeads(leads: WorkshopLeadScrapeInput[]) {
   for (const lead of leads) {
     const emailKey = normalizeKey(lead.email);
     const phoneKey = normalizeKey(lead.phone || lead.whatsappNumber);
+    const fbKey = normalizeKey(lead.facebookPageUrl);
     const shopCityKey = `${normalizeKey(lead.shopName)}|${normalizeKey(lead.city)}`;
 
     const key = emailKey
       ? `email|${emailKey}`
       : phoneKey
       ? `phone|${phoneKey}`
+      : fbKey
+      ? `facebook|${fbKey}`
       : `shopcity|${shopCityKey}`;
 
     if (!lead.shopName?.trim()) continue;
@@ -219,7 +237,10 @@ function parseYellowPagesListings(
       parsePhoneFromText(fullText);
 
     const website =
-      absoluteUrl(node.find(".mlr__item--website a").first().attr("href"), "https://www.yellowpages.ca") ||
+      absoluteUrl(
+        node.find(".mlr__item--website a").first().attr("href"),
+        "https://www.yellowpages.ca"
+      ) ||
       absoluteUrl(node.find('a[href*="http"]').first().attr("href"), "https://www.yellowpages.ca");
 
     const addressLine1 =
@@ -256,6 +277,7 @@ function parseYellowPagesListings(
       scrapePlatform: "zenrows_yellowpages",
       scrapeQuery: defaults.query,
       phoneSource: "directory",
+      isVirtualPhone: true,
       outreachGoal: defaults.outreachGoal,
       adminNotes: defaults.adminNotes,
     });
@@ -328,68 +350,13 @@ function parseYelpListings(
       scrapePlatform: "zenrows_yelp",
       scrapeQuery: defaults.query,
       phoneSource: "directory",
+      isVirtualPhone: true,
       outreachGoal: defaults.outreachGoal,
       adminNotes: defaults.adminNotes,
     });
   });
 
   return dedupeLeads(leads);
-}
-
-function scoreLead(
-  lead: WorkshopLeadScrapeInput,
-  request: Required<
-    Pick<
-      WorkshopScrapeRequest,
-      | "requirePhone"
-      | "requireWebsite"
-      | "requireEmail"
-      | "preferDirectPhone"
-      | "allowVirtualNumbers"
-      | "preferWhatsappCapable"
-      | "minimumReviews"
-      | "minimumRating"
-      | "outreachGoal"
-    >
-  >
-) {
-  let score = 0;
-
-  if (lead.scrapePlatform === "zenrows_yellowpages") score += 48;
-  if (lead.scrapePlatform === "zenrows_yelp") score += 45;
-
-  if (lead.phone) score += 18;
-  if (lead.website) score += 18;
-  if (lead.email) score += 16;
-  if (lead.addressLine1) score += 8;
-
-  if ((lead.reviewCount ?? 0) >= 5) score += 8;
-  if ((lead.reviewCount ?? 0) >= 20) score += 8;
-  if ((lead.rating ?? 0) >= 3.5) score += 8;
-  if ((lead.rating ?? 0) >= 4.2) score += 8;
-
-  if (request.preferWhatsappCapable && lead.whatsappNumber) score += 6;
-  if (request.preferDirectPhone && lead.phoneSource === "direct") score += 10;
-
-  if (request.requirePhone && !lead.phone) score -= 40;
-  if (request.requireWebsite && !lead.website) score -= 30;
-  if (request.requireEmail && !lead.email) score -= 25;
-
-  if ((lead.reviewCount ?? 0) < request.minimumReviews) score -= 18;
-  if ((lead.rating ?? 0) < request.minimumRating) score -= 18;
-
-  if (request.outreachGoal === "whatsapp" && !lead.phone) score -= 25;
-  if (request.outreachGoal === "sms" && !lead.phone) score -= 25;
-  if (request.outreachGoal === "email" && !lead.email) score -= 25;
-  if (request.outreachGoal === "call" && !lead.phone) score -= 25;
-
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function qualityFromScore(score: number): "high" | "medium" | "low" {
-  if (score >= 80) return "high";
-  if (score >= 60) return "medium";
-  return "low";
 }
 
 function textMatchesRules(
@@ -403,6 +370,8 @@ function textMatchesRules(
     lead.addressLine1,
     lead.website,
     lead.notes,
+    lead.facebookPageUrl,
+    lead.instagramPageUrl,
   ]
     .filter(Boolean)
     .join(" ")
@@ -448,6 +417,40 @@ function passesHardFilters(
   return true;
 }
 
+function enrichLead(lead: WorkshopLeadScrapeInput) {
+  const channelFlags = classifyLeadChannels({
+    phone: lead.phone,
+    whatsappNumber: lead.whatsappNumber,
+    email: lead.email,
+    website: lead.website,
+    facebookPageUrl: lead.facebookPageUrl,
+    instagramPageUrl: lead.instagramPageUrl,
+    hasWhatsappLink: lead.hasWhatsappLink,
+    hasMessengerLink: lead.hasMessengerLink,
+    isVirtualPhone: lead.isVirtualPhone,
+  });
+
+  const authenticity = evaluateLeadAuthenticity({
+    scrapePlatform: lead.scrapePlatform,
+    phone: lead.phone,
+    email: lead.email,
+    website: lead.website,
+    facebookPageUrl: lead.facebookPageUrl,
+    instagramPageUrl: lead.instagramPageUrl,
+    reviewCount: lead.reviewCount,
+    rating: lead.rating,
+    isVirtualPhone: lead.isVirtualPhone,
+    hasWhatsappLink: lead.hasWhatsappLink,
+    hasMessengerLink: lead.hasMessengerLink,
+  });
+
+  return {
+    ...lead,
+    ...channelFlags,
+    ...authenticity,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!ZENROWS_API_KEY) {
@@ -469,34 +472,37 @@ export async function POST(req: NextRequest) {
     const sources =
       Array.isArray(body.sources) && body.sources.length > 0
         ? body.sources
+        : body.source
+        ? [body.source]
         : ["zenrows_yellowpages"];
 
     const alternateQueries = splitList(body.alternateQueries);
     const includeKeywords = splitList(body.includeKeywords);
     const excludeKeywords = splitList(body.excludeKeywords);
 
-    const queryList = dedupeLeads(
-      [primaryQuery, ...alternateQueries]
-        .map((query) => ({ shopName: query }))
-    ).map((x) => x.shopName);
+    const queryList = Array.from(
+      new Set([primaryQuery, ...alternateQueries].filter(Boolean))
+    );
 
     const requirePhone = Boolean(body.requirePhone);
     const requireWebsite = Boolean(body.requireWebsite);
     const requireEmail = Boolean(body.requireEmail);
-    const preferDirectPhone = Boolean(body.preferDirectPhone);
     const allowVirtualNumbers =
       typeof body.allowVirtualNumbers === "boolean" ? body.allowVirtualNumbers : true;
-    const preferWhatsappCapable = Boolean(body.preferWhatsappCapable);
 
     const minimumReviews = Math.max(0, Number(body.minimumReviews ?? 0) || 0);
     const minimumRating = Math.max(0, Number(body.minimumRating ?? 0) || 0);
-    const maxItemsPerSource = Math.max(10, Math.min(300, Number(body.maxItemsPerSource ?? 100) || 100));
+    const maxItemsPerSource = Math.max(
+      10,
+      Math.min(300, Number(body.maxItemsPerSource ?? 100) || 100)
+    );
 
     const outreachGoal = body.outreachGoal || "mixed";
     const adminNotes = cleanText(body.adminNotes);
 
     const unsupportedSources = sources.filter(
-      (source) => !SUPPORTED_SOURCES.includes(source as (typeof SUPPORTED_SOURCES)[number])
+      (source) =>
+        !SUPPORTED_SOURCES.includes(source as (typeof SUPPORTED_SOURCES)[number])
     );
 
     const scrapedLeads: WorkshopLeadScrapeInput[] = [];
@@ -520,6 +526,24 @@ export async function POST(req: NextRequest) {
 
         if (source === "zenrows_yelp") {
           urls = buildYelpSearchUrls({
+            city,
+            province,
+            query,
+            pages,
+          });
+        }
+
+        if (source === "zenrows_google_business") {
+          urls = buildGoogleBusinessSearchUrls({
+            city,
+            province,
+            query,
+            pages,
+          });
+        }
+
+        if (source === "zenrows_facebook_page") {
+          urls = buildFacebookPageSearchUrls({
             city,
             province,
             query,
@@ -558,27 +582,29 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          const enriched = parsed.map((lead) => {
-            const score = scoreLead(lead, {
-              requirePhone,
-              requireWebsite,
-              requireEmail,
-              preferDirectPhone,
-              allowVirtualNumbers,
-              preferWhatsappCapable,
-              minimumReviews,
-              minimumRating,
+          if (source === "zenrows_google_business") {
+            parsed = parseGoogleBusinessListings(html, {
+              city,
+              province,
+              category,
+              query,
               outreachGoal,
+              adminNotes,
             });
+          }
 
-            const contactQuality = qualityFromScore(score);
+          if (source === "zenrows_facebook_page") {
+            parsed = parseFacebookPageListings(html, {
+              city,
+              province,
+              category,
+              query,
+              outreachGoal,
+              adminNotes,
+            });
+          }
 
-            return {
-              ...lead,
-              leadScore: score,
-              contactQuality,
-            };
-          });
+          const enriched = parsed.map(enrichLead);
 
           const filtered = enriched.filter(
             (lead) =>
@@ -625,6 +651,8 @@ export async function POST(req: NextRequest) {
           platform: lead.scrapePlatform || lead.source || undefined,
           leadScore: lead.leadScore ?? null,
           contactQuality: lead.contactQuality ?? null,
+          bestContactChannel: lead.bestContactChannel ?? null,
+          authenticityTier: lead.authenticityTier ?? null,
         });
       } catch (error) {
         result.skipped += 1;
@@ -635,6 +663,8 @@ export async function POST(req: NextRequest) {
           platform: lead.scrapePlatform || lead.source || undefined,
           leadScore: lead.leadScore ?? null,
           contactQuality: lead.contactQuality ?? null,
+          bestContactChannel: lead.bestContactChannel ?? null,
+          authenticityTier: lead.authenticityTier ?? null,
         });
       }
     }

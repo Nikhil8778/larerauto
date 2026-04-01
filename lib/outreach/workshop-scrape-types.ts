@@ -25,6 +25,19 @@ export type WorkshopLeadScrapeInput = {
   isVirtualPhone?: boolean | null;
   outreachGoal?: string | null;
   adminNotes?: string | null;
+
+  bestContactChannel?: string | null;
+  isWhatsappQuality?: boolean | null;
+  isCallOnly?: boolean | null;
+  isEmailQuality?: boolean | null;
+  isSocialOnly?: boolean | null;
+
+  facebookPageUrl?: string | null;
+  instagramPageUrl?: string | null;
+  hasWhatsappLink?: boolean | null;
+  hasMessengerLink?: boolean | null;
+  websiteContactUrl?: string | null;
+  authenticityTier?: "high" | "medium" | "low" | null;
 };
 
 export type WorkshopScrapeRequest = {
@@ -34,10 +47,10 @@ export type WorkshopScrapeRequest = {
   query?: string;
   pages?: number;
 
-  sources?: string[];
-  alternateQueries?: string[];
-  includeKeywords?: string[];
-  excludeKeywords?: string[];
+  sources?: string[] | string;
+  alternateQueries?: string[] | string;
+  includeKeywords?: string[] | string;
+  excludeKeywords?: string[] | string;
 
   requirePhone?: boolean;
   requireWebsite?: boolean;
@@ -68,5 +81,7 @@ export type WorkshopScrapeSaveResult = {
     platform?: string;
     leadScore?: number | null;
     contactQuality?: "high" | "medium" | "low" | null;
+    bestContactChannel?: string | null;
+    authenticityTier?: "high" | "medium" | "low" | null;
   }>;
 };

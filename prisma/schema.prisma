@@ -710,7 +710,19 @@ model WorkshopLead {
   replySession          OutreachReplySession?
   messages              OutreachMessage[]
   followUps             OutreachLeadFollowUp[]
+  bestContactChannel    String?   // whatsapp | call | email | social | mixed
+  isWhatsappQuality     Boolean    @default(false)
+  isCallOnly            Boolean    @default(false)
+  isEmailQuality        Boolean    @default(false)
+  isSocialOnly          Boolean    @default(false)
 
+  facebookPageUrl       String?
+  instagramPageUrl      String?
+  hasWhatsappLink       Boolean    @default(false)
+  hasMessengerLink      Boolean    @default(false)
+  websiteContactUrl     String?
+
+authenticityTier      String?   // high | medium | low
   @@index([shopName])
   @@index([city])
   @@index([province])
@@ -719,6 +731,12 @@ model WorkshopLead {
   @@index([scrapePlatform])
   @@index([contactQuality])
   @@index([leadScore])
+  @@index([bestContactChannel])
+  @@index([isWhatsappQuality])
+  @@index([isCallOnly])
+  @@index([isEmailQuality])
+  @@index([isSocialOnly])
+  @@index([authenticityTier])
 }
 
 model MessageTemplate {

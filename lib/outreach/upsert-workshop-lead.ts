@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { WorkshopLeadScrapeInput } from "./workshop-scrape-types";
+import { classifyLeadChannels } from "./lead-channel-buckets";
+import { evaluateLeadAuthenticity } from "./lead-authenticity";
 
 function cleanText(value: unknown) {
   const str = String(value ?? "").trim();
@@ -43,6 +45,7 @@ async function findExistingLead(input: {
   phone?: string | null;
   whatsappNumber?: string | null;
   email?: string | null;
+  facebookPageUrl?: string | null;
 }) {
   if (input.email) {
     const byEmail = await prisma.workshopLead.findFirst({
@@ -66,6 +69,14 @@ async function findExistingLead(input: {
       select: { id: true },
     });
     if (byPhone) return byPhone;
+  }
+
+  if (input.facebookPageUrl) {
+    const byFacebook = await prisma.workshopLead.findFirst({
+      where: { facebookPageUrl: input.facebookPageUrl },
+      select: { id: true },
+    });
+    if (byFacebook) return byFacebook;
   }
 
   const byShopCity = await prisma.workshopLead.findFirst({
@@ -98,7 +109,7 @@ export async function upsertWorkshopLead(
     return "skipped";
   }
 
-  const normalized = {
+  const preNormalized = {
     shopName,
     contactName: cleanText(input.contactName),
     phone: cleanPhone(input.phone),
@@ -130,6 +141,57 @@ export async function upsertWorkshopLead(
       typeof input.isVirtualPhone === "boolean" ? input.isVirtualPhone : null,
     outreachGoal: cleanText(input.outreachGoal),
     adminNotes: cleanText(input.adminNotes),
+
+    facebookPageUrl: cleanText(input.facebookPageUrl),
+    instagramPageUrl: cleanText(input.instagramPageUrl),
+    hasWhatsappLink:
+      typeof input.hasWhatsappLink === "boolean" ? input.hasWhatsappLink : false,
+    hasMessengerLink:
+      typeof input.hasMessengerLink === "boolean" ? input.hasMessengerLink : false,
+    websiteContactUrl: cleanText(input.websiteContactUrl),
+    authenticityTier: cleanText(input.authenticityTier) as
+      | "high"
+      | "medium"
+      | "low"
+      | null,
+  };
+
+  const channelFlags = classifyLeadChannels({
+    phone: preNormalized.phone,
+    whatsappNumber: preNormalized.whatsappNumber,
+    email: preNormalized.email,
+    website: preNormalized.website,
+    facebookPageUrl: preNormalized.facebookPageUrl,
+    instagramPageUrl: preNormalized.instagramPageUrl,
+    hasWhatsappLink: preNormalized.hasWhatsappLink,
+    hasMessengerLink: preNormalized.hasMessengerLink,
+    isVirtualPhone: preNormalized.isVirtualPhone,
+  });
+
+  const authenticity = evaluateLeadAuthenticity({
+    scrapePlatform: preNormalized.scrapePlatform,
+    phone: preNormalized.phone,
+    email: preNormalized.email,
+    website: preNormalized.website,
+    facebookPageUrl: preNormalized.facebookPageUrl,
+    instagramPageUrl: preNormalized.instagramPageUrl,
+    reviewCount: preNormalized.reviewCount,
+    rating: preNormalized.rating,
+    isVirtualPhone: preNormalized.isVirtualPhone,
+    hasWhatsappLink: preNormalized.hasWhatsappLink,
+    hasMessengerLink: preNormalized.hasMessengerLink,
+  });
+
+  const normalized = {
+    ...preNormalized,
+    bestContactChannel: channelFlags.bestContactChannel,
+    isWhatsappQuality: channelFlags.isWhatsappQuality,
+    isCallOnly: channelFlags.isCallOnly,
+    isEmailQuality: channelFlags.isEmailQuality,
+    isSocialOnly: channelFlags.isSocialOnly,
+    leadScore: preNormalized.leadScore ?? authenticity.leadScore,
+    contactQuality: preNormalized.contactQuality ?? authenticity.contactQuality,
+    authenticityTier: preNormalized.authenticityTier ?? authenticity.authenticityTier,
   };
 
   const existing = await findExistingLead({
@@ -138,6 +200,7 @@ export async function upsertWorkshopLead(
     phone: normalized.phone,
     whatsappNumber: normalized.whatsappNumber,
     email: normalized.email,
+    facebookPageUrl: normalized.facebookPageUrl,
   });
 
   if (!existing) {
@@ -179,6 +242,19 @@ export async function upsertWorkshopLead(
       isVirtualPhone: normalized.isVirtualPhone ?? undefined,
       outreachGoal: normalized.outreachGoal ?? undefined,
       adminNotes: normalized.adminNotes ?? undefined,
+
+      bestContactChannel: normalized.bestContactChannel ?? undefined,
+      isWhatsappQuality: normalized.isWhatsappQuality,
+      isCallOnly: normalized.isCallOnly,
+      isEmailQuality: normalized.isEmailQuality,
+      isSocialOnly: normalized.isSocialOnly,
+
+      facebookPageUrl: normalized.facebookPageUrl ?? undefined,
+      instagramPageUrl: normalized.instagramPageUrl ?? undefined,
+      hasWhatsappLink: normalized.hasWhatsappLink,
+      hasMessengerLink: normalized.hasMessengerLink,
+      websiteContactUrl: normalized.websiteContactUrl ?? undefined,
+      authenticityTier: normalized.authenticityTier ?? undefined,
     },
   });
 
