@@ -2,15 +2,116 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { sendWhatsAppMessage } from "@/lib/outreach/send-whatsapp";
+import { sendSmsMessage } from "@/lib/outreach/send-sms";
+import { sendEmailMessage } from "@/lib/outreach/send-email";
+
+function buildMechanicApprovalMessage(params: {
+  contactName?: string | null;
+  shopName?: string | null;
+  loginUrl: string;
+}) {
+  const name =
+    params.contactName?.trim() ||
+    params.shopName?.trim() ||
+    "there";
+
+  const body = `Hi ${name},
+
+Your Lare Auto mechanic / workshop partner account has been approved.
+
+You can now log in here:
+${params.loginUrl}
+
+After login, you can:
+- buy parts using your trade pricing
+- generate referral codes for your customers
+- track direct purchases
+- track referral purchases and credits
+
+Regards,
+Lare Auto
+www.lareauto.ca`;
+
+  const subject = "Your Lare Auto Mechanic Account Has Been Approved";
+
+  return { subject, body };
+}
 
 export async function approveMechanic(mechanicId: string) {
-  await prisma.mechanic.update({
+  const mechanic = await prisma.mechanic.update({
     where: { id: mechanicId },
     data: {
       isApproved: true,
       isActive: true,
     },
+    select: {
+      id: true,
+      shopName: true,
+      contactName: true,
+      email: true,
+      phone: true,
+      whatsappNumber: true,
+    },
   });
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() || "https://www.lareauto.ca";
+
+  const loginUrl = `${baseUrl}/mechanic-login`;
+
+  const content = buildMechanicApprovalMessage({
+    contactName: mechanic.contactName,
+    shopName: mechanic.shopName,
+    loginUrl,
+  });
+
+  const recipientName =
+    [mechanic.contactName].filter(Boolean).join(" ").trim() ||
+    mechanic.shopName ||
+    "Mechanic Partner";
+
+  let sent = false;
+
+  if (mechanic.whatsappNumber || mechanic.phone) {
+    const whatsappResult = await sendWhatsAppMessage({
+      recipientName,
+      recipientPhone: mechanic.whatsappNumber || mechanic.phone || undefined,
+      recipientEmail: mechanic.email || undefined,
+      body: content.body,
+      subject: content.subject,
+    });
+
+    if (whatsappResult.success) {
+      sent = true;
+    } else if (mechanic.phone) {
+      const smsResult = await sendSmsMessage({
+        recipientName,
+        recipientPhone: mechanic.phone,
+        recipientEmail: mechanic.email || undefined,
+        body: content.body,
+        subject: content.subject,
+      });
+
+      if (smsResult.success) {
+        sent = true;
+      }
+    }
+  }
+
+  if (!sent && mechanic.email) {
+    const emailResult = await sendEmailMessage({
+      recipientName,
+      recipientEmail: mechanic.email,
+      recipientPhone: mechanic.phone || mechanic.whatsappNumber || undefined,
+      subject: content.subject,
+      body: content.body,
+    });
+
+    if (emailResult.success) {
+      sent = true;
+    }
+  }
 
   revalidatePath("/admin/mechanics");
 }

@@ -17,8 +17,7 @@ function badgeClass(
 ) {
   if (!isActive) return "bg-slate-100 text-slate-700";
   if (expiresAt && expiresAt < new Date()) return "bg-rose-100 text-rose-700";
-  if (usageLimit !== null && usedCount >= usageLimit)
-    return "bg-violet-100 text-violet-700";
+  if (usageLimit !== null && usedCount >= usageLimit) return "bg-violet-100 text-violet-700";
   return "bg-emerald-100 text-emerald-700";
 }
 
@@ -71,8 +70,8 @@ export default async function MechanicDashboardPage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="text-xl font-bold text-amber-900">Approval Pending</h2>
           <p className="mt-2 text-sm text-amber-800">
-            Lare Auto has received your signup. Once approved, you will be able to
-            generate single-use referral codes and access mechanic benefits.
+            Lare Auto has received your signup. Once approved, you will be able to generate
+            single-use referral codes and access mechanic benefits.
           </p>
         </div>
       </div>
@@ -92,16 +91,15 @@ export default async function MechanicDashboardPage() {
             Customer referral discount is{" "}
             <strong>{mechanic.referralDiscountPct}%</strong> on item price only.
           </p>
-          <p className="mt-2 text-sm text-slate-700">
-            You can monitor payment, inventory verification, and fulfillment updates
-            for your direct and referred business below.
+          <p className="text-sm text-gray-600">
+            Your referral earning is <strong>8%</strong> on eligible referred customer purchases.
           </p>
         </div>
 
         <LogoutButton />
       </div>
 
-      <div className="mb-8 grid gap-4 md:grid-cols-4">
+      <div className="mb-8 grid gap-4 md:grid-cols-5">
         <div className="rounded-2xl border p-5">
           <div className="text-sm text-gray-500">Shop</div>
           <div className="mt-1 text-lg font-semibold">{mechanic.shopName}</div>
@@ -118,19 +116,18 @@ export default async function MechanicDashboardPage() {
         </div>
 
         <div className="rounded-2xl border p-5">
+          <div className="text-sm text-gray-500">Mechanic Earn %</div>
+          <div className="mt-1 text-lg font-semibold">8%</div>
+        </div>
+
+        <div className="rounded-2xl border p-5">
           <div className="text-sm text-gray-500">Quick Action</div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3">
             <Link
               href="/catalog"
               className="inline-flex rounded-xl bg-black px-4 py-2 text-sm text-white"
             >
               Browse Parts
-            </Link>
-            <Link
-              href="/quote"
-              className="inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-800"
-            >
-              Instant Quote
             </Link>
           </div>
         </div>
@@ -145,8 +142,7 @@ export default async function MechanicDashboardPage() {
           <div>
             <h2 className="text-2xl font-bold">Single-Use Referral Codes</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Generate a fresh referral code for each customer. Each code works once
-              and expires in 7 days.
+              Generate a fresh referral code for each customer. Each code works once and expires in 7 days.
             </p>
           </div>
 
@@ -191,12 +187,7 @@ export default async function MechanicDashboardPage() {
                           code.usageLimit
                         )}`}
                       >
-                        {badgeText(
-                          code.isActive,
-                          code.expiresAt,
-                          code.usedCount,
-                          code.usageLimit
-                        )}
+                        {badgeText(code.isActive, code.expiresAt, code.usedCount, code.usageLimit)}
                       </span>
                     </td>
                     <td className="px-4 py-3">{code.customerDiscountPct}%</td>

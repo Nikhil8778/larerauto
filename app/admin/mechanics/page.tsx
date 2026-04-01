@@ -88,7 +88,8 @@ export default async function AdminMechanicsPage() {
               <th className="px-4 py-3">Contact</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Trade %</th>
-              <th className="px-4 py-3">Referral %</th>
+              <th className="px-4 py-3">Customer Referral %</th>
+              <th className="px-4 py-3">Mechanic Earn %</th>
               <th className="px-4 py-3">Direct Orders</th>
               <th className="px-4 py-3">Referred Orders</th>
               <th className="px-4 py-3">Direct Spend</th>
@@ -120,6 +121,7 @@ export default async function AdminMechanicsPage() {
 
                 <td className="px-4 py-3">{m.tradeDiscountPct}%</td>
                 <td className="px-4 py-3">{m.referralDiscountPct}%</td>
+                <td className="px-4 py-3">8%</td>
                 <td className="px-4 py-3">{m.directOrdersCount}</td>
                 <td className="px-4 py-3">{m.referredOrdersCount}</td>
                 <td className="px-4 py-3">{money(m.directSpendCents)}</td>
@@ -138,7 +140,7 @@ export default async function AdminMechanicsPage() {
                   <div className="flex flex-col gap-2">
                     <Link
                       href={`/admin/mechanics/${m.id}`}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 text-center"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-center text-xs font-bold text-slate-700 hover:bg-slate-50"
                     >
                       Open Detail
                     </Link>
@@ -213,7 +215,7 @@ export default async function AdminMechanicsPage() {
 
             {!rows.length && (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={14} className="px-4 py-8 text-center text-gray-500">
                   No mechanics found.
                 </td>
               </tr>
