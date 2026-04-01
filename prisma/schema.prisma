@@ -685,10 +685,20 @@ model WorkshopLead {
   category              String?
   rating                Float?
   reviewCount           Int?
-  source                String? // yellowpages | google | manual | csv
+  source                String? // yellowpages | yelp | google | manual | csv
   status                String                   @default("new") // new | reviewed | approved | rejected | contacted | replied | converted
   notes                 String?
   scrapedAt             DateTime?
+
+  scrapePlatform        String?
+  scrapeQuery           String?
+  contactQuality        String? // high | medium | low
+  leadScore             Int?
+  phoneSource           String? // direct | directory | social | unknown
+  isVirtualPhone        Boolean?
+  outreachGoal          String?
+  adminNotes            String?
+
   customerId            String?                  @unique
   convertedAt           DateTime?
   conversionNote        String?
@@ -706,6 +716,9 @@ model WorkshopLead {
   @@index([province])
   @@index([status])
   @@index([source])
+  @@index([scrapePlatform])
+  @@index([contactQuality])
+  @@index([leadScore])
 }
 
 model MessageTemplate {

@@ -16,7 +16,6 @@ function cleanPhone(value: unknown) {
   if (!str) return null;
 
   const normalized = str.replace(/[^\d+]/g, "");
-
   if (!normalized) return null;
 
   if (normalized.startsWith("+")) return normalized;
@@ -117,6 +116,20 @@ export async function upsertWorkshopLead(
     source: cleanText(input.source) || "zenrows",
     notes: cleanText(input.notes),
     scrapedAt: cleanDate(input.scrapedAt) || new Date(),
+
+    scrapePlatform: cleanText(input.scrapePlatform),
+    scrapeQuery: cleanText(input.scrapeQuery),
+    contactQuality: cleanText(input.contactQuality) as
+      | "high"
+      | "medium"
+      | "low"
+      | null,
+    leadScore: cleanNumber(input.leadScore),
+    phoneSource: cleanText(input.phoneSource),
+    isVirtualPhone:
+      typeof input.isVirtualPhone === "boolean" ? input.isVirtualPhone : null,
+    outreachGoal: cleanText(input.outreachGoal),
+    adminNotes: cleanText(input.adminNotes),
   };
 
   const existing = await findExistingLead({
@@ -157,6 +170,15 @@ export async function upsertWorkshopLead(
       source: normalized.source ?? undefined,
       notes: normalized.notes ?? undefined,
       scrapedAt: normalized.scrapedAt ?? undefined,
+
+      scrapePlatform: normalized.scrapePlatform ?? undefined,
+      scrapeQuery: normalized.scrapeQuery ?? undefined,
+      contactQuality: normalized.contactQuality ?? undefined,
+      leadScore: normalized.leadScore ?? undefined,
+      phoneSource: normalized.phoneSource ?? undefined,
+      isVirtualPhone: normalized.isVirtualPhone ?? undefined,
+      outreachGoal: normalized.outreachGoal ?? undefined,
+      adminNotes: normalized.adminNotes ?? undefined,
     },
   });
 

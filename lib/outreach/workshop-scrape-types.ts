@@ -16,6 +16,15 @@ export type WorkshopLeadScrapeInput = {
   source?: string | null;
   notes?: string | null;
   scrapedAt?: Date | string | null;
+
+  scrapePlatform?: string | null;
+  scrapeQuery?: string | null;
+  contactQuality?: "high" | "medium" | "low" | null;
+  leadScore?: number | null;
+  phoneSource?: string | null;
+  isVirtualPhone?: boolean | null;
+  outreachGoal?: string | null;
+  adminNotes?: string | null;
 };
 
 export type WorkshopScrapeRequest = {
@@ -24,6 +33,26 @@ export type WorkshopScrapeRequest = {
   category?: string;
   query?: string;
   pages?: number;
+
+  sources?: string[];
+  alternateQueries?: string[];
+  includeKeywords?: string[];
+  excludeKeywords?: string[];
+
+  requirePhone?: boolean;
+  requireWebsite?: boolean;
+  requireEmail?: boolean;
+  preferDirectPhone?: boolean;
+  allowVirtualNumbers?: boolean;
+  preferWhatsappCapable?: boolean;
+
+  minimumReviews?: number;
+  minimumRating?: number;
+  maxItemsPerSource?: number;
+
+  outreachGoal?: "mixed" | "call" | "whatsapp" | "sms" | "email" | "social";
+  adminNotes?: string;
+
   source?: string;
 };
 
@@ -36,5 +65,8 @@ export type WorkshopScrapeSaveResult = {
     shopName: string;
     status: "created" | "updated" | "skipped";
     reason?: string;
+    platform?: string;
+    leadScore?: number | null;
+    contactQuality?: "high" | "medium" | "low" | null;
   }>;
 };
