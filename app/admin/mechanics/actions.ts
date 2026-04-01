@@ -51,7 +51,6 @@ export async function approveMechanic(mechanicId: string) {
       contactName: true,
       email: true,
       phone: true,
-      whatsappNumber: true,
     },
   });
 
@@ -67,16 +66,16 @@ export async function approveMechanic(mechanicId: string) {
   });
 
   const recipientName =
-    [mechanic.contactName].filter(Boolean).join(" ").trim() ||
+    mechanic.contactName?.trim() ||
     mechanic.shopName ||
     "Mechanic Partner";
 
   let sent = false;
 
-  if (mechanic.whatsappNumber || mechanic.phone) {
+  if (mechanic.phone) {
     const whatsappResult = await sendWhatsAppMessage({
       recipientName,
-      recipientPhone: mechanic.whatsappNumber || mechanic.phone || undefined,
+      recipientPhone: mechanic.phone,
       recipientEmail: mechanic.email || undefined,
       body: content.body,
       subject: content.subject,
@@ -84,7 +83,7 @@ export async function approveMechanic(mechanicId: string) {
 
     if (whatsappResult.success) {
       sent = true;
-    } else if (mechanic.phone) {
+    } else {
       const smsResult = await sendSmsMessage({
         recipientName,
         recipientPhone: mechanic.phone,
@@ -100,17 +99,13 @@ export async function approveMechanic(mechanicId: string) {
   }
 
   if (!sent && mechanic.email) {
-    const emailResult = await sendEmailMessage({
+    await sendEmailMessage({
       recipientName,
       recipientEmail: mechanic.email,
-      recipientPhone: mechanic.phone || mechanic.whatsappNumber || undefined,
+      recipientPhone: mechanic.phone || undefined,
       subject: content.subject,
       body: content.body,
     });
-
-    if (emailResult.success) {
-      sent = true;
-    }
   }
 
   revalidatePath("/admin/mechanics");
