@@ -14,10 +14,8 @@ type AdminPartRow = {
   inventoryQty: number;
   sellPriceCents: number;
   amazonPriceCents: number | null;
-  aPremiumPriceCents: number | null;
   selectedPriceCents: number | null;
   amazonUrl: string;
-  aPremiumUrl: string;
   syncStatus: string;
   syncError: string;
   lastPriceSyncAt: string;
@@ -31,6 +29,8 @@ type SearchParams = {
   partType?: string;
   status?: string;
   inventory?: string;
+  batch?: string;
+  syncScope?: string;
 };
 
 type PartsApiResponse = {
@@ -81,6 +81,8 @@ export default async function AdminPartsPage({
   const selectedPartType = sp.partType ?? "";
   const selectedStatus = sp.status ?? "";
   const selectedInventory = sp.inventory ?? "";
+  const selectedBatch = sp.batch ?? "10";
+  const selectedSyncScope = sp.syncScope ?? "pending";
 
   return (
     <div className="space-y-6">
@@ -89,14 +91,20 @@ export default async function AdminPartsPage({
           <div>
             <h1 className="text-3xl font-black text-slate-900">Parts</h1>
             <p className="mt-2 text-sm font-medium text-slate-600">
-              Professional control panel for pricing, sync, fitment, and inventory.
+              Amazon pricing control panel for fitment-based offers stored in your database.
             </p>
             <p className="mt-2 text-xs font-semibold text-slate-500">
-              Showing up to 100 most recently updated offers.
+              Customer-side pricing should come from Offer rows only, not live scraping.
             </p>
           </div>
 
-          <SyncVendorsButton />
+          <SyncVendorsButton
+            selectedMake={selectedMake}
+            selectedModel={selectedModel}
+            selectedPartType={selectedPartType}
+            selectedBatch={selectedBatch}
+            selectedSyncScope={selectedSyncScope}
+          />
         </div>
       </div>
 
@@ -110,6 +118,8 @@ export default async function AdminPartsPage({
           selectedPartType={selectedPartType}
           selectedStatus={selectedStatus}
           selectedInventory={selectedInventory}
+          selectedBatch={selectedBatch}
+          selectedSyncScope={selectedSyncScope}
         />
       </div>
 

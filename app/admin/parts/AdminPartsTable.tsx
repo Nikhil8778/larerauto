@@ -10,11 +10,9 @@ type Row = {
   sourceId: string;
   currency: string;
   amazonPriceCents: number | null;
-  aPremiumPriceCents: number | null;
   selectedPriceCents: number | null;
   sellPriceCents: number;
   amazonUrl: string;
-  aPremiumUrl: string;
   syncStatus: string;
   syncError: string;
   lastPriceSyncAt: string;
@@ -49,10 +47,10 @@ function statusBadge(status: string) {
     );
   }
 
-  if (s === "partial") {
+  if (s === "pending") {
     return (
       <span className="rounded bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-700">
-        partial
+        pending
       </span>
     );
   }
@@ -86,7 +84,6 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
             <th className="px-4 py-3 font-semibold">Title</th>
             <th className="px-4 py-3 font-semibold">Inventory</th>
             <th className="px-4 py-3 font-semibold">Amazon Price</th>
-            <th className="px-4 py-3 font-semibold">A-Premium Price</th>
             <th className="px-4 py-3 font-semibold">Selected Price</th>
             <th className="px-4 py-3 font-semibold">Sell Price</th>
             <th className="px-4 py-3 font-semibold">Chosen Vendor</th>
@@ -125,21 +122,6 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                 )}
               </td>
 
-              <td className="px-4 py-3 whitespace-nowrap">
-                {row.aPremiumUrl ? (
-                  <a
-                    href={row.aPremiumUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 underline"
-                  >
-                    {formatMoney(row.aPremiumPriceCents, row.currency)}
-                  </a>
-                ) : (
-                  formatMoney(row.aPremiumPriceCents, row.currency)
-                )}
-              </td>
-
               <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
                 {formatMoney(row.selectedPriceCents, row.currency)}
               </td>
@@ -148,7 +130,9 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
                 {formatMoney(row.sellPriceCents, row.currency)}
               </td>
 
-              <td className="px-4 py-3 whitespace-nowrap capitalize">{row.sourceId}</td>
+              <td className="px-4 py-3 whitespace-nowrap capitalize">
+                {row.sourceId || "-"}
+              </td>
 
               <td className="px-4 py-3">
                 <div>{statusBadge(row.syncStatus)}</div>
@@ -167,7 +151,7 @@ export default function AdminPartsTable({ rows }: { rows: Row[] }) {
 
           {rows.length === 0 && (
             <tr>
-              <td colSpan={14} className="px-4 py-6 text-center text-slate-500">
+              <td colSpan={13} className="px-4 py-6 text-center text-slate-500">
                 No offers found.
               </td>
             </tr>

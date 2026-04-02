@@ -9,6 +9,8 @@ type Props = {
   selectedPartType: string;
   selectedStatus: string;
   selectedInventory: string;
+  selectedBatch: string;
+  selectedSyncScope: string;
 };
 
 export default function AdminPartsToolbar({
@@ -20,6 +22,8 @@ export default function AdminPartsToolbar({
   selectedPartType,
   selectedStatus,
   selectedInventory,
+  selectedBatch,
+  selectedSyncScope,
 }: Props) {
   function updateQuery(key: string, value: string) {
     const url = new URL(window.location.href);
@@ -63,7 +67,7 @@ export default function AdminPartsToolbar({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
         <select
           value={selectedMake}
           onChange={(e) => updateQuery("make", e.target.value)}
@@ -110,7 +114,7 @@ export default function AdminPartsToolbar({
         >
           <option value="">All Status</option>
           <option value="success">Success</option>
-          <option value="partial">Partial</option>
+          <option value="pending">Pending</option>
           <option value="failed">Failed</option>
         </select>
 
@@ -123,6 +127,31 @@ export default function AdminPartsToolbar({
           <option value="low">Low Inventory (&lt;= 2)</option>
           <option value="out">Out of Stock (= 0)</option>
         </select>
+
+        <select
+          value={selectedBatch}
+          onChange={(e) => updateQuery("batch", e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+        >
+          <option value="10">Batch 10</option>
+          <option value="25">Batch 25</option>
+          <option value="50">Batch 50</option>
+          <option value="100">Batch 100</option>
+        </select>
+
+        <select
+          value={selectedSyncScope}
+          onChange={(e) => updateQuery("syncScope", e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+        >
+          <option value="pending">Sync Pending/Failed</option>
+          <option value="all">Sync All Filtered</option>
+        </select>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
+        Use small batches first to control ZenRows credits. Best practice is to sync
+        only pending/failed offers for one make/model/part type at a time.
       </div>
     </div>
   );

@@ -104,15 +104,10 @@ export async function GET(req: Request) {
   ]);
 
   const rows = offers.map((offer) => {
-    let selectedPriceCents: number | null = null;
-
-    if (offer.sourceId === "amazon") {
-      selectedPriceCents = offer.amazonPriceCents;
-    } else if (offer.sourceId === "apremium") {
-      selectedPriceCents = offer.aPremiumPriceCents;
-    } else {
-      selectedPriceCents = offer.referencePriceCents ?? null;
-    }
+    const selectedPriceCents =
+      offer.sourceId === "amazon"
+        ? offer.amazonPriceCents
+        : offer.referencePriceCents ?? null;
 
     return {
       offerId: offer.id,
@@ -126,11 +121,9 @@ export async function GET(req: Request) {
       sourceId: offer.sourceId,
       currency: offer.currency,
       amazonPriceCents: offer.amazonPriceCents,
-      aPremiumPriceCents: offer.aPremiumPriceCents,
       selectedPriceCents,
       sellPriceCents: offer.sellPriceCents,
       amazonUrl: offer.amazonUrl ?? "",
-      aPremiumUrl: offer.aPremiumUrl ?? "",
       syncStatus: offer.syncStatus ?? "",
       syncError: offer.syncError ?? "",
       lastPriceSyncAt: offer.lastPriceSyncAt

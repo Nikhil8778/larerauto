@@ -5,13 +5,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const {
-      offerId,
-      inventoryQty,
-      sellPriceCents,
-      amazonUrl,
-      aPremiumUrl,
-    } = body;
+    const { offerId, inventoryQty, sellPriceCents, amazonUrl } = body;
 
     if (!offerId) {
       return NextResponse.json({ error: "Missing offerId" }, { status: 400 });
@@ -20,10 +14,9 @@ export async function POST(req: Request) {
     const updated = await prisma.offer.update({
       where: { id: offerId },
       data: {
-        inventoryQty,
-        sellPriceCents,
-        amazonUrl,
-        aPremiumUrl,
+        ...(typeof inventoryQty === "number" ? { inventoryQty } : {}),
+        ...(typeof sellPriceCents === "number" ? { sellPriceCents } : {}),
+        ...(typeof amazonUrl === "string" ? { amazonUrl } : {}),
       },
     });
 
