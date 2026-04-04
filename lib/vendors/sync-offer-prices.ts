@@ -27,9 +27,24 @@ type SyncOptions = {
   take?: number;
   make?: string;
   model?: string;
+  engine?: string;
+  year?: number;
   partType?: string;
   onlyPending?: boolean;
 };
+
+function isPreferredSupplierCandidate(candidate: CandidateRow) {
+  const text = `${candidate.title ?? ""} ${candidate.rawText ?? ""}`.toLowerCase();
+  return (
+    text.includes("sellerstore=logel") ||
+    text.includes("sellerstore=logels") ||
+    text.includes("sellerstore=logel's") ||
+    text.includes("preferredsupplier=true") ||
+    text.includes("visit the logel") ||
+    text.includes("logel's auto parts store") ||
+    text.includes("logels auto parts store")
+  );
+}
 
 function isUsable(input: OfferInput, candidate: CandidateRow) {
   return (
@@ -40,16 +55,21 @@ function isUsable(input: OfferInput, candidate: CandidateRow) {
 }
 
 function shortlistTopThree(input: OfferInput, candidates: CandidateRow[]) {
-  return [...candidates]
-    .filter((c) => isUsable(input, c))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+  const usable = [...candidates].filter((c) => isUsable(input, c));
+  const preferred = usable.filter(isPreferredSupplierCandidate);
+  const pool = preferred.length > 0 ? preferred : usable;
+
+  return pool.sort((a, b) => b.score - a.score).slice(0, 3);
 }
 
 function bestCandidateFromShortlist(candidates: CandidateRow[]) {
   if (candidates.length === 0) return null;
 
   return [...candidates].sort((a, b) => {
+    const aPreferred = isPreferredSupplierCandidate(a) ? 1 : 0;
+    const bPreferred = isPreferredSupplierCandidate(b) ? 1 : 0;
+    if (bPreferred !== aPreferred) return bPreferred - aPreferred;
+
     if (a.score !== b.score) return b.score - a.score;
 
     const aPrice = a.priceCents ?? Number.POSITIVE_INFINITY;
@@ -59,44 +79,52 @@ function bestCandidateFromShortlist(candidates: CandidateRow[]) {
 }
 
 export async function syncOfferPrices(options: SyncOptions = {}) {
-  const { take, make, model, partType, onlyPending = true } = options;
+  const {
+    take,
+    make,
+    model,
+    engine,
+    year,
+    partType,
+    onlyPending = true,
+  } = options;
+
+  const vehicleWhere: any = {};
+
+  if (make) {
+    vehicleWhere.make = {
+      name: {
+        equals: make,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (model) {
+    vehicleWhere.model = {
+      name: {
+        equals: model,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (engine) {
+    vehicleWhere.engine = {
+      name: {
+        equals: engine,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (typeof year === "number" && Number.isFinite(year)) {
+    vehicleWhere.year = year;
+  }
 
   const offers = await prisma.offer.findMany({
     where: {
-      ...(make
-        ? {
-            vehicle: {
-              make: {
-                name: {
-                  equals: make,
-                  mode: "insensitive",
-                },
-              },
-            },
-          }
-        : {}),
-      ...(model
-        ? {
-            vehicle: {
-              ...(make
-                ? {
-                    make: {
-                      name: {
-                        equals: make,
-                        mode: "insensitive",
-                      },
-                    },
-                  }
-                : {}),
-              model: {
-                name: {
-                  equals: model,
-                  mode: "insensitive",
-                },
-              },
-            },
-          }
-        : {}),
+      ...(Object.keys(vehicleWhere).length > 0 ? { vehicle: vehicleWhere } : {}),
       ...(partType
         ? {
             part: {
@@ -140,6 +168,8 @@ export async function syncOfferPrices(options: SyncOptions = {}) {
     take,
     make,
     model,
+    engine,
+    year,
     partType,
     onlyPending,
   });
@@ -172,6 +202,11 @@ export async function syncOfferPrices(options: SyncOptions = {}) {
       });
     }
 
+    const hasAnyAmazonCandidates = amazonCandidates.length > 0;
+    const hasPricedAmazonCandidates = amazonCandidates.some(
+      (c) => c.priceCents !== null && c.priceCents > 0
+    );
+
     const selectedPriceCents = selected?.priceCents ?? null;
     const pricing =
       selectedPriceCents !== null
@@ -192,22 +227,32 @@ export async function syncOfferPrices(options: SyncOptions = {}) {
         syncError:
           selectedPriceCents !== null
             ? null
-            : "No strict-fit Amazon priced candidate found",
+            : !hasAnyAmazonCandidates
+            ? "No Amazon candidates found"
+            : !hasPricedAmazonCandidates
+            ? "Amazon candidates found but no usable price parsed"
+            : "Amazon candidates found, but none passed strict fitment validation",
         lastPriceSyncAt: new Date(),
       },
     });
 
     console.log("Offer sync result:", {
       offerId: offer.id,
+      year: input.year,
+      make: input.make,
+      model: input.model,
+      engine: input.engine,
       partType: input.partType,
       candidatesCount: candidates.length,
       amazonCandidatesCount: amazonCandidates.length,
+      preferredCandidatesCount: amazonCandidates.filter(isPreferredSupplierCandidate).length,
       selected: selected
         ? {
             vendor: selected.vendor,
             title: selected.title,
             priceCents: selected.priceCents,
             score: selected.score,
+            preferredSupplier: isPreferredSupplierCandidate(selected),
           }
         : null,
     });

@@ -1,3 +1,5 @@
+import { fetchVendorHtml } from "./fetch-with-fallback";
+
 function cleanText(value: string | undefined | null) {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -66,32 +68,73 @@ function extractAsin(url: string) {
   return null;
 }
 
-function buildZenRowsUrl(targetUrl: string, jsRender = false) {
-  const apiKey = process.env.ZENROWS_API_KEY;
+function extractSellerOrStoreName(html: string) {
+  const patterns = [
+    /Visit the ([^<"]+?) Store/gi,
+    /Sold by<\/span>.*?<span[^>]*>([^<]+)</gi,
+    /Ships from<\/span>.*?<span[^>]*>([^<]+)</gi,
+    /storeName":"([^"]+)"/gi,
+    /merchantName":"([^"]+)"/gi,
+  ];
 
-  if (!apiKey) {
-    throw new Error("ZENROWS_API_KEY is missing in environment variables");
+  for (const regex of patterns) {
+    const match = regex.exec(html);
+    if (match?.[1]) {
+      return cleanText(match[1]);
+    }
   }
 
-  const params = new URLSearchParams({
-    apikey: apiKey,
-    url: targetUrl,
-    js_render: jsRender ? "true" : "false",
-    premium_proxy: "true",
-  });
+  const text = cleanText(html.replace(/<[^>]+>/g, " "));
+  const sellerLineMatch =
+    text.match(/visit the\s+(.+?)\s+store/i) ||
+    text.match(/sold by\s+(.+?)(?:\s+ships from|\s+returns|\s+payment|$)/i);
 
-  return `https://api.zenrows.com/v1/?${params.toString()}`;
+  return sellerLineMatch?.[1] ? cleanText(sellerLineMatch[1]) : null;
 }
 
-async function fetchViaZenRows(targetUrl: string, jsRender = false) {
-  const zenRowsUrl = buildZenRowsUrl(targetUrl, jsRender);
+function extractInventorySignal(html: string) {
+  const text = cleanText(html.replace(/<[^>]+>/g, " "));
 
-  const res = await fetch(zenRowsUrl, {
-    method: "GET",
-    cache: "no-store",
-  });
+  const onlyLeft = text.match(/only\s+(\d+)\s+left in stock/i);
+  if (onlyLeft?.[1]) {
+    return {
+      inventoryCount: Number(onlyLeft[1]),
+      inventoryText: `Only ${onlyLeft[1]} left in stock`,
+      inStock: true,
+    };
+  }
 
-  return res;
+  if (/in stock/i.test(text)) {
+    return {
+      inventoryCount: null as number | null,
+      inventoryText: "In stock",
+      inStock: true,
+    };
+  }
+
+  if (/currently unavailable|out of stock/i.test(text)) {
+    return {
+      inventoryCount: 0,
+      inventoryText: "Out of stock",
+      inStock: false,
+    };
+  }
+
+  return {
+    inventoryCount: null as number | null,
+    inventoryText: null as string | null,
+    inStock: null as boolean | null,
+  };
+}
+
+function isPreferredSupplierName(value: string | null | undefined) {
+  if (!value) return false;
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("logel") ||
+    normalized.includes("logels") ||
+    normalized.includes("logel's")
+  );
 }
 
 export async function fetchAmazonProductPagePrice(productUrl: string) {
@@ -99,21 +142,26 @@ export async function fetchAmazonProductPagePrice(productUrl: string) {
     const asin = extractAsin(productUrl);
     const url = asin ? `https://www.amazon.ca/dp/${asin}` : productUrl;
 
-    let res = await fetchViaZenRows(url, false);
+    let fetched = await fetchVendorHtml(url, {
+      jsRender: false,
+      premiumProxy: false,
+    });
 
-    if (!res.ok) {
-      console.log("ZenRows Amazon product page non-OK status:", res.status, url);
-      res = await fetchViaZenRows(url, true);
+    if (!fetched.ok) {
+      fetched = await fetchVendorHtml(url, {
+        jsRender: true,
+        premiumProxy: true,
+      });
     }
 
-    if (!res.ok) {
+    if (!fetched.ok) {
       return {
         priceCents: null as number | null,
         rawText: null as string | null,
       };
     }
 
-    const html = await res.text();
+    const html = fetched.html;
     const priceCents = extractBestVisiblePrice(html);
 
     const fitmentConfirmed =
@@ -125,9 +173,26 @@ export async function fetchAmazonProductPagePrice(productUrl: string) {
       /cannot confirm fit/i.test(html) ||
       /does not fit/i.test(html);
 
+    const sellerOrStore = extractSellerOrStoreName(html);
+    const inventory = extractInventorySignal(html);
+    const preferredSupplier = isPreferredSupplierName(sellerOrStore);
+
     return {
       priceCents,
-      rawText: `fitmentConfirmed=${fitmentConfirmed};cannotConfirmFit=${cannotConfirmFit}`,
+      rawText: [
+        `provider=${fetched.provider}`,
+        `fitmentConfirmed=${fitmentConfirmed}`,
+        `cannotConfirmFit=${cannotConfirmFit}`,
+        sellerOrStore ? `sellerStore=${sellerOrStore}` : null,
+        `preferredSupplier=${preferredSupplier}`,
+        inventory.inventoryText ? `inventoryText=${inventory.inventoryText}` : null,
+        inventory.inventoryCount !== null
+          ? `inventoryCount=${inventory.inventoryCount}`
+          : null,
+        inventory.inStock !== null ? `pageInStock=${inventory.inStock}` : null,
+      ]
+        .filter(Boolean)
+        .join(";"),
     };
   } catch (error) {
     console.error("Amazon product page scrape failed:", error);

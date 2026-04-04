@@ -14,6 +14,10 @@ function normalize(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function contains(text: string, value: string) {
   return text.includes(normalize(value));
 }
@@ -64,7 +68,7 @@ function extractStandaloneYears(text: string) {
   return [...new Set((normalized.match(/\b(?:19|20)\d{2}\b/g) ?? []).map(Number))];
 }
 
-function yearLooksCompatible(text: string, targetYear: number) {
+function evaluateYearText(text: string, targetYear: number) {
   const ranges = extractYearRanges(text);
 
   if (ranges.length > 0) {
@@ -77,6 +81,45 @@ function yearLooksCompatible(text: string, targetYear: number) {
   }
 
   return null;
+}
+
+function getModelLocalSegments(text: string, model: string) {
+  const normalizedText = normalize(text);
+  const normalizedModel = normalize(model);
+
+  if (!normalizedText || !normalizedModel) return [];
+
+  const pattern = new RegExp(`\\b${escapeRegex(normalizedModel)}\\b`, "gi");
+  const segments: string[] = [];
+  const radius = 60;
+
+  for (const match of normalizedText.matchAll(pattern)) {
+    const index = match.index ?? -1;
+    if (index < 0) continue;
+
+    const start = Math.max(0, index - radius);
+    const end = Math.min(normalizedText.length, index + normalizedModel.length + radius);
+    segments.push(normalizedText.slice(start, end));
+  }
+
+  return segments;
+}
+
+function yearLooksCompatible(text: string, model: string, targetYear: number) {
+  const normalizedText = normalize(text);
+
+  const modelLocalSegments = getModelLocalSegments(normalizedText, model);
+  let sawModelLocalYearEvidence = false;
+
+  for (const segment of modelLocalSegments) {
+    const segmentResult = evaluateYearText(segment, targetYear);
+    if (segmentResult === true) return true;
+    if (segmentResult === false) sawModelLocalYearEvidence = true;
+  }
+
+  if (sawModelLocalYearEvidence) return false;
+
+  return evaluateYearText(normalizedText, targetYear);
 }
 
 function extractLiterToken(value: string) {
@@ -157,105 +200,142 @@ function isEngineSensitivePart(partType: string) {
   );
 }
 
+function hasConfirmedFit(text: string) {
+  return (
+    contains(text, "confirmed fit") ||
+    contains(text, "this fits your") ||
+    contains(text, "amazonconfirmedfit") ||
+    contains(text, "fitmentconfirmed=true")
+  );
+}
+
+function hasCannotConfirmFit(text: string) {
+  return (
+    contains(text, "cannot confirm fit") ||
+    contains(text, "does not fit") ||
+    contains(text, "this does not fit") ||
+    contains(text, "not fit") ||
+    contains(text, "cannotconfirmfit=true")
+  );
+}
+
+function hasRequiredPartTypeText(text: string, partType: string) {
+  const p = normalize(partType);
+
+  if (p.includes("alternator")) {
+    return contains(text, "alternator");
+  }
+
+  if (p.includes("starter")) {
+    return containsAny(text, ["starter", "starter motor"]);
+  }
+
+  if (p.includes("brake pad")) {
+    return containsAny(text, ["brake pad", "brake pads"]);
+  }
+
+  if (p.includes("rotor")) {
+    return containsAny(text, ["rotor", "rotors"]);
+  }
+
+  if (p.includes("fuel tank")) {
+    return containsAny(text, ["fuel tank", "gas tank"]);
+  }
+
+  return contains(text, p);
+}
+
+function hasWrongPartTypeSignals(text: string, partType: string) {
+  const p = normalize(partType);
+
+  if (p.includes("alternator")) {
+    return (
+      (containsAny(text, ["voltage regulator", "brush"]) &&
+        !contains(text, "alternator")) ||
+      (contains(text, "starter") && !contains(text, "alternator"))
+    );
+  }
+
+  if (p.includes("starter")) {
+    return contains(text, "alternator");
+  }
+
+  if (p.includes("brake pad")) {
+    return containsAny(text, ["shoe", "rotor only", "caliper"]);
+  }
+
+  if (p.includes("rotor")) {
+    return containsAny(text, ["pad only", "shoe", "caliper"]);
+  }
+
+  if (p.includes("fuel tank")) {
+    return containsAny(text, [
+      "fuel cap",
+      "gas cap",
+      "filler",
+      "filler neck",
+      "strap",
+      "sensor",
+      "pressure sensor",
+      "level sensor",
+      "pump",
+      "sending unit",
+      "reservoir",
+      "coolant",
+    ]);
+  }
+
+  return false;
+}
+
+function isPreferredSupplierCandidate(text: string) {
+  return (
+    contains(text, "sellerstore=logel") ||
+    contains(text, "sellerstore=logels") ||
+    contains(text, "sellerstore=logel's") ||
+    contains(text, "preferredsupplier=true") ||
+    contains(text, "visit the logel") ||
+    contains(text, "logel's auto parts store") ||
+    contains(text, "logels auto parts store")
+  );
+}
+
 export function explainCandidateFailure(
   input: CandidateSearchInput,
   candidate: FitmentCandidate
 ): string[] {
   const text = normalize(`${candidate.title ?? ""} ${candidate.rawText ?? ""}`);
   const reasons: string[] = [];
-  const partType = normalize(input.partType);
 
-  const yearCompatibility = yearLooksCompatible(text, input.year);
-  if (yearCompatibility !== true) {
-    reasons.push("year_mismatch");
-  }
-
-  if (!contains(text, input.make)) {
-    reasons.push("make_missing");
-  }
-
-  if (!contains(text, input.model)) {
-    reasons.push("model_missing");
-  }
-
+  const yearCompatibility = yearLooksCompatible(text, input.model, input.year);
   const engineCompatibility = engineLooksCompatible(text, input.engine ?? "");
-  if (isEngineSensitivePart(input.partType) && engineCompatibility !== true) {
+  const confirmedFit = hasConfirmedFit(text);
+  const cannotConfirmFit = hasCannotConfirmFit(text);
+  const refMatches = matchingReferenceCount(input, candidate);
+
+  if (cannotConfirmFit) reasons.push("negative_fit_signal");
+  if (!contains(text, input.make)) reasons.push("make_missing");
+  if (!contains(text, input.model)) reasons.push("model_missing");
+  if (!hasRequiredPartTypeText(text, input.partType)) reasons.push("part_type_missing");
+  if (hasWrongPartTypeSignals(text, input.partType)) reasons.push("wrong_part_type_terms");
+
+  if (yearCompatibility === false) reasons.push("year_mismatch");
+
+  if (isEngineSensitivePart(input.partType) && engineCompatibility === false) {
     reasons.push("engine_mismatch");
   }
 
-  if (contains(text, "cannot confirm fit")) reasons.push("cannot_confirm_fit");
-  if (contains(text, "does not fit")) reasons.push("does_not_fit");
-  if (contains(text, "this does not fit")) reasons.push("this_does_not_fit");
-  if (contains(text, "not fit")) reasons.push("not_fit");
-
-  if (partType.includes("alternator")) {
-    if (!contains(text, "alternator")) reasons.push("alternator_missing");
-
-    if (
-      containsAny(text, ["voltage regulator", "brush"]) &&
-      !contains(text, "alternator")
-    ) {
-      reasons.push("wrong_part_type_terms");
-    }
-
-    if (contains(text, "starter") && !contains(text, "alternator")) {
-      reasons.push("wrong_part_type_terms");
-    }
+  if (yearCompatibility !== true && !confirmedFit && refMatches === 0) {
+    reasons.push("year_not_confirmed");
   }
 
-  if (partType.includes("starter")) {
-    if (!containsAny(text, ["starter", "starter motor"])) {
-      reasons.push("starter_missing");
-    }
-
-    if (contains(text, "alternator")) {
-      reasons.push("wrong_part_type_terms");
-    }
-  }
-
-  if (partType.includes("brake pad")) {
-    if (!containsAny(text, ["brake pad", "brake pads"])) {
-      reasons.push("brake_pad_missing");
-    }
-
-    if (containsAny(text, ["shoe", "rotor only", "caliper"])) {
-      reasons.push("wrong_part_type_terms");
-    }
-  }
-
-  if (partType.includes("rotor")) {
-    if (!containsAny(text, ["rotor", "rotors"])) {
-      reasons.push("rotor_missing");
-    }
-
-    if (containsAny(text, ["pad only", "shoe", "caliper"])) {
-      reasons.push("wrong_part_type_terms");
-    }
-  }
-
-  if (partType.includes("fuel tank")) {
-    if (!containsAny(text, ["fuel tank", "gas tank"])) {
-      reasons.push("fuel_tank_missing");
-    }
-
-    if (
-      containsAny(text, [
-        "fuel cap",
-        "gas cap",
-        "filler",
-        "filler neck",
-        "strap",
-        "sensor",
-        "pressure sensor",
-        "level sensor",
-        "pump",
-        "sending unit",
-        "reservoir",
-        "coolant",
-      ])
-    ) {
-      reasons.push("wrong_part_type_terms");
-    }
+  if (
+    isEngineSensitivePart(input.partType) &&
+    engineCompatibility !== true &&
+    refMatches === 0 &&
+    !confirmedFit
+  ) {
+    reasons.push("engine_not_confirmed");
   }
 
   return [...new Set(reasons)];
@@ -265,8 +345,42 @@ export function candidatePassesHardFitment(
   input: CandidateSearchInput,
   candidate: FitmentCandidate
 ) {
-  const reasons = explainCandidateFailure(input, candidate);
-  return reasons.length === 0;
+  const text = normalize(`${candidate.title ?? ""} ${candidate.rawText ?? ""}`);
+
+  const yearCompatibility = yearLooksCompatible(text, input.model, input.year);
+  const engineCompatibility = engineLooksCompatible(text, input.engine ?? "");
+  const confirmedFit = hasConfirmedFit(text);
+  const cannotConfirmFit = hasCannotConfirmFit(text);
+  const refMatches = matchingReferenceCount(input, candidate);
+
+  if (cannotConfirmFit) return false;
+  if (!contains(text, input.make)) return false;
+  if (!contains(text, input.model)) return false;
+  if (!hasRequiredPartTypeText(text, input.partType)) return false;
+  if (hasWrongPartTypeSignals(text, input.partType)) return false;
+
+  if (yearCompatibility === false) return false;
+
+  if (isEngineSensitivePart(input.partType) && engineCompatibility === false) {
+    return false;
+  }
+
+  if (yearCompatibility === true) {
+    if (!isEngineSensitivePart(input.partType)) return true;
+    if (engineCompatibility === true) return true;
+  }
+
+  if (refMatches > 0) {
+    if (!isEngineSensitivePart(input.partType)) return true;
+    return engineCompatibility !== false;
+  }
+
+  if (confirmedFit) {
+    if (!isEngineSensitivePart(input.partType)) return true;
+    return engineCompatibility !== false;
+  }
+
+  return false;
 }
 
 export function scoreCandidate(
@@ -283,14 +397,16 @@ export function scoreCandidate(
   if (contains(text, input.model)) score += 24;
   if (input.engine && contains(text, input.engine)) score += 15;
 
-  const yearCompatibility = yearLooksCompatible(text, input.year);
+  const yearCompatibility = yearLooksCompatible(text, input.model, input.year);
   if (yearCompatibility === true) score += 30;
-  else score -= 200;
+  else if (yearCompatibility === false) score -= 260;
+  else score -= 20;
 
   const engineCompatibility = engineLooksCompatible(text, input.engine ?? "");
   if (isEngineSensitivePart(input.partType)) {
     if (engineCompatibility === true) score += 20;
-    else score -= 160;
+    else if (engineCompatibility === false) score -= 180;
+    else score -= 20;
   }
 
   const p = normalize(input.partType);
@@ -352,10 +468,10 @@ export function scoreCandidate(
   if (contains(text, "compatible")) score += 4;
   if (contains(text, "replacement")) score += 3;
 
-  if (contains(text, "confirmed fit")) score += 12;
-  if (contains(text, "cannot confirm fit")) score -= 60;
-  if (contains(text, "does not fit")) score -= 120;
-  if (contains(text, "this does not fit")) score -= 120;
+  if (hasConfirmedFit(text)) score += 35;
+  if (contains(text, "cannot confirm fit")) score -= 80;
+  if (contains(text, "does not fit")) score -= 150;
+  if (contains(text, "this does not fit")) score -= 150;
 
   if (candidate.inStock === true) score += 5;
   if (candidate.inStock === false) score -= 10;
@@ -384,9 +500,13 @@ export function scoreCandidate(
     score += 10;
   }
 
+  if (isPreferredSupplierCandidate(text)) {
+    score += 120;
+  }
+
   const refMatches = matchingReferenceCount(input, candidate);
   if (refMatches > 0) {
-    score += refMatches * 60;
+    score += refMatches * 80;
   }
 
   return score;

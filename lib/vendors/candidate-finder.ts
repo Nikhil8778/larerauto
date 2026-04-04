@@ -34,6 +34,8 @@ type FindOptions = {
   take?: number;
   make?: string;
   model?: string;
+  engine?: string;
+  year?: number;
   partType?: string;
   onlyUnsynced?: boolean;
 };
@@ -43,46 +45,48 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
     take,
     make,
     model,
+    engine,
+    year,
     partType,
     onlyUnsynced = true,
   } = options;
 
+  const vehicleWhere: any = {};
+
+  if (make) {
+    vehicleWhere.make = {
+      name: {
+        equals: make,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (model) {
+    vehicleWhere.model = {
+      name: {
+        equals: model,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (engine) {
+    vehicleWhere.engine = {
+      name: {
+        equals: engine,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (typeof year === "number" && Number.isFinite(year)) {
+    vehicleWhere.year = year;
+  }
+
   const offers = await prisma.offer.findMany({
     where: {
-      ...(make
-        ? {
-            vehicle: {
-              make: {
-                name: {
-                  equals: make,
-                  mode: "insensitive",
-                },
-              },
-            },
-          }
-        : {}),
-      ...(model
-        ? {
-            vehicle: {
-              ...(make
-                ? {
-                    make: {
-                      name: {
-                        equals: make,
-                        mode: "insensitive",
-                      },
-                    },
-                  }
-                : {}),
-              model: {
-                name: {
-                  equals: model,
-                  mode: "insensitive",
-                },
-              },
-            },
-          }
-        : {}),
+      ...(Object.keys(vehicleWhere).length > 0 ? { vehicle: vehicleWhere } : {}),
       ...(partType
         ? {
             part: {
@@ -127,6 +131,15 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
   });
 
   console.log("Processing", offers.length, "offer(s)...");
+  console.log("Candidate finder filters:", {
+    take,
+    make,
+    model,
+    engine,
+    year,
+    partType,
+    onlyUnsynced,
+  });
 
   for (const offer of offers) {
     const knownReferenceNumbers = extractKnownReferenceNumbers(
@@ -142,40 +155,17 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
       referenceNumbers: knownReferenceNumbers,
     };
 
-    console.log("Searching Amazon candidates for:", input);
-    console.log("Known reference numbers:", knownReferenceNumbers);
-
     const amazonCandidates = await searchAmazonCandidates(input);
-
-    for (const candidate of amazonCandidates) {
-      const reasons = explainCandidateFailure(input, candidate);
-
-      console.log("Candidate review:", {
-        vendor: candidate.vendor,
-        title: candidate.title,
-        priceCents: candidate.priceCents,
-        reasons,
-      });
-    }
 
     const strictCandidates = amazonCandidates
       .filter((c) => candidatePassesHardFitment(input, c))
       .map((c) => ({
         ...c,
         score: scoreCandidate(input, c),
+        reasons: explainCandidateFailure(input, c),
       }))
-      .sort((a, b) => b.score - a.score);
-
-    console.log(
-      "Top scored candidates:",
-      strictCandidates.slice(0, 5).map((c) => ({
-        vendor: c.vendor,
-        title: c.title,
-        score: c.score,
-        referenceNumbers: c.referenceNumbers,
-        priceCents: c.priceCents,
-      }))
-    );
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
 
     await prisma.vendorCandidate.deleteMany({
       where: { offerId: offer.id },
@@ -192,7 +182,13 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
           badge: candidate.badge ?? null,
           inStock: candidate.inStock ?? null,
           score: candidate.score,
-          rawText: candidate.rawText ?? null,
+          rawText: [
+            candidate.rawText ?? null,
+            candidate.reasons.length ? `reasons=${candidate.reasons.join("|")}` : null,
+          ]
+            .filter(Boolean)
+            .join(" || ")
+            .slice(0, 3000),
           selected: false,
         },
       });

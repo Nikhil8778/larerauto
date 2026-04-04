@@ -26,6 +26,8 @@ type AdminPartRow = {
 type SearchParams = {
   make?: string;
   model?: string;
+  engine?: string;
+  year?: string;
   partType?: string;
   status?: string;
   inventory?: string;
@@ -37,6 +39,8 @@ type PartsApiResponse = {
   rows: AdminPartRow[];
   makeOptions: string[];
   modelOptions: string[];
+  engineOptions: string[];
+  yearOptions: string[];
   partTypeOptions: string[];
 };
 
@@ -57,6 +61,8 @@ export default async function AdminPartsPage({
 
   if (sp.make) url.searchParams.set("make", sp.make);
   if (sp.model) url.searchParams.set("model", sp.model);
+  if (sp.engine) url.searchParams.set("engine", sp.engine);
+  if (sp.year) url.searchParams.set("year", sp.year);
   if (sp.partType) url.searchParams.set("partType", sp.partType);
   if (sp.status) url.searchParams.set("status", sp.status);
   if (sp.inventory) url.searchParams.set("inventory", sp.inventory);
@@ -66,6 +72,8 @@ export default async function AdminPartsPage({
   let rows: AdminPartRow[] = [];
   let makeOptions: string[] = [];
   let modelOptions: string[] = [];
+  let engineOptions: string[] = [];
+  let yearOptions: string[] = [];
   let partTypeOptions: string[] = [];
 
   if (res.ok) {
@@ -73,11 +81,15 @@ export default async function AdminPartsPage({
     rows = data.rows ?? [];
     makeOptions = data.makeOptions ?? [];
     modelOptions = data.modelOptions ?? [];
+    engineOptions = data.engineOptions ?? [];
+    yearOptions = data.yearOptions ?? [];
     partTypeOptions = data.partTypeOptions ?? [];
   }
 
   const selectedMake = sp.make ?? "";
   const selectedModel = sp.model ?? "";
+  const selectedEngine = sp.engine ?? "";
+  const selectedYear = sp.year ?? "";
   const selectedPartType = sp.partType ?? "";
   const selectedStatus = sp.status ?? "";
   const selectedInventory = sp.inventory ?? "";
@@ -101,6 +113,8 @@ export default async function AdminPartsPage({
           <SyncVendorsButton
             selectedMake={selectedMake}
             selectedModel={selectedModel}
+            selectedEngine={selectedEngine}
+            selectedYear={selectedYear}
             selectedPartType={selectedPartType}
             selectedBatch={selectedBatch}
             selectedSyncScope={selectedSyncScope}
@@ -112,9 +126,13 @@ export default async function AdminPartsPage({
         <AdminPartsToolbar
           makeOptions={makeOptions}
           modelOptions={modelOptions}
+          engineOptions={engineOptions}
+          yearOptions={yearOptions}
           partTypeOptions={partTypeOptions}
           selectedMake={selectedMake}
           selectedModel={selectedModel}
+          selectedEngine={selectedEngine}
+          selectedYear={selectedYear}
           selectedPartType={selectedPartType}
           selectedStatus={selectedStatus}
           selectedInventory={selectedInventory}

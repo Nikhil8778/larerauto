@@ -5,6 +5,8 @@ import { syncOfferPrices } from "@/lib/vendors/sync-offer-prices";
 type SyncAllVendorPricesInput = {
   make?: string;
   model?: string;
+  engine?: string;
+  year?: number;
   partType?: string;
   take?: number;
   onlyPending?: boolean;
@@ -16,6 +18,8 @@ type SyncAllVendorPricesResult = {
   filters: {
     make: string;
     model: string;
+    engine: string;
+    year: string;
     partType: string;
     take: number;
     onlyPending: boolean;
@@ -32,45 +36,50 @@ export async function syncAllVendorPrices(
 ): Promise<SyncAllVendorPricesResult> {
   const make = (input.make ?? "").trim();
   const model = (input.model ?? "").trim();
+  const engine = (input.engine ?? "").trim();
   const partType = (input.partType ?? "").trim();
   const take = normalizeTake(input.take);
   const onlyPending = input.onlyPending ?? true;
+  const year =
+    typeof input.year === "number" && Number.isFinite(input.year)
+      ? input.year
+      : undefined;
+
+  const vehicleWhere: any = {};
+
+  if (make) {
+    vehicleWhere.make = {
+      name: {
+        equals: make,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (model) {
+    vehicleWhere.model = {
+      name: {
+        equals: model,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (engine) {
+    vehicleWhere.engine = {
+      name: {
+        equals: engine,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (typeof year === "number") {
+    vehicleWhere.year = year;
+  }
 
   const countWhere: any = {
-    ...(make
-      ? {
-          vehicle: {
-            make: {
-              name: {
-                equals: make,
-                mode: "insensitive",
-              },
-            },
-          },
-        }
-      : {}),
-    ...(model
-      ? {
-          vehicle: {
-            ...(make
-              ? {
-                  make: {
-                    name: {
-                      equals: make,
-                      mode: "insensitive",
-                    },
-                  },
-                }
-              : {}),
-            model: {
-              name: {
-                equals: model,
-                mode: "insensitive",
-              },
-            },
-          },
-        }
-      : {}),
+    ...(Object.keys(vehicleWhere).length > 0 ? { vehicle: vehicleWhere } : {}),
     ...(partType
       ? {
           part: {
@@ -102,6 +111,8 @@ export async function syncAllVendorPrices(
   await findAndStoreVendorCandidates({
     make: make || undefined,
     model: model || undefined,
+    engine: engine || undefined,
+    year,
     partType: partType || undefined,
     take,
     onlyUnsynced: onlyPending,
@@ -110,6 +121,8 @@ export async function syncAllVendorPrices(
   await syncOfferPrices({
     make: make || undefined,
     model: model || undefined,
+    engine: engine || undefined,
+    year,
     partType: partType || undefined,
     take,
     onlyPending,
@@ -121,6 +134,8 @@ export async function syncAllVendorPrices(
     filters: {
       make,
       model,
+      engine,
+      year: typeof year === "number" ? String(year) : "",
       partType,
       take,
       onlyPending,

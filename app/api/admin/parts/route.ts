@@ -6,39 +6,57 @@ export async function GET(req: Request) {
 
   const make = (searchParams.get("make") ?? "").trim();
   const model = (searchParams.get("model") ?? "").trim();
+  const engine = (searchParams.get("engine") ?? "").trim();
+  const yearRaw = (searchParams.get("year") ?? "").trim();
   const partType = (searchParams.get("partType") ?? "").trim();
   const status = (searchParams.get("status") ?? "").trim();
   const inventory = (searchParams.get("inventory") ?? "").trim();
 
-  const where: any = {};
+  const year =
+    yearRaw && Number.isFinite(Number(yearRaw)) ? Number(yearRaw) : undefined;
+
+  const vehicleWhere: any = {};
 
   if (make) {
-    where.vehicle = {
-      ...(where.vehicle ?? {}),
-      make: {
-        name: {
-          equals: make,
-          mode: "insensitive",
-        },
+    vehicleWhere.make = {
+      name: {
+        equals: make,
+        mode: "insensitive",
       },
     };
   }
 
   if (model) {
-    where.vehicle = {
-      ...(where.vehicle ?? {}),
-      model: {
-        name: {
-          equals: model,
-          mode: "insensitive",
-        },
+    vehicleWhere.model = {
+      name: {
+        equals: model,
+        mode: "insensitive",
       },
     };
   }
 
+  if (engine) {
+    vehicleWhere.engine = {
+      name: {
+        equals: engine,
+        mode: "insensitive",
+      },
+    };
+  }
+
+  if (typeof year === "number") {
+    vehicleWhere.year = year;
+  }
+
+  const offerWhere: any = {};
+
+  if (Object.keys(vehicleWhere).length > 0) {
+    offerWhere.vehicle = vehicleWhere;
+  }
+
   if (partType) {
-    where.part = {
-      ...(where.part ?? {}),
+    offerWhere.part = {
+      ...(offerWhere.part ?? {}),
       partType: {
         name: {
           equals: partType,
@@ -49,21 +67,28 @@ export async function GET(req: Request) {
   }
 
   if (status) {
-    where.syncStatus = {
+    offerWhere.syncStatus = {
       equals: status,
       mode: "insensitive",
     };
   }
 
   if (inventory === "low") {
-    where.inventoryQty = { lte: 2 };
+    offerWhere.inventoryQty = { lte: 2 };
   } else if (inventory === "out") {
-    where.inventoryQty = 0;
+    offerWhere.inventoryQty = 0;
   }
 
-  const [offers, makeRows, modelRows, partTypeRows] = await Promise.all([
+  const [
+    offers,
+    makeRows,
+    vehiclesForModels,
+    vehiclesForEngines,
+    vehiclesForYears,
+    offersForPartTypes,
+  ] = await Promise.all([
     prisma.offer.findMany({
-      where,
+      where: offerWhere,
       include: {
         vehicle: {
           include: {
@@ -90,18 +115,121 @@ export async function GET(req: Request) {
       take: 200,
     }),
 
-    prisma.model.findMany({
-      orderBy: { name: "asc" },
-      select: { name: true },
-      take: 500,
+    prisma.vehicle.findMany({
+      where: make
+        ? {
+            make: {
+              name: {
+                equals: make,
+                mode: "insensitive",
+              },
+            },
+          }
+        : {},
+      include: {
+        model: true,
+      },
+      take: 5000,
     }),
 
-    prisma.partType.findMany({
-      orderBy: { name: "asc" },
-      select: { name: true },
-      take: 200,
+    prisma.vehicle.findMany({
+      where: {
+        ...(make
+          ? {
+              make: {
+                name: {
+                  equals: make,
+                  mode: "insensitive",
+                },
+              },
+            }
+          : {}),
+        ...(model
+          ? {
+              model: {
+                name: {
+                  equals: model,
+                  mode: "insensitive",
+                },
+              },
+            }
+          : {}),
+      },
+      include: {
+        engine: true,
+      },
+      take: 5000,
+    }),
+
+    prisma.vehicle.findMany({
+      where: {
+        ...(make
+          ? {
+              make: {
+                name: {
+                  equals: make,
+                  mode: "insensitive",
+                },
+              },
+            }
+          : {}),
+        ...(model
+          ? {
+              model: {
+                name: {
+                  equals: model,
+                  mode: "insensitive",
+                },
+              },
+            }
+          : {}),
+        ...(engine
+          ? {
+              engine: {
+                name: {
+                  equals: engine,
+                  mode: "insensitive",
+                },
+              },
+            }
+          : {}),
+      },
+      select: {
+        year: true,
+      },
+      take: 5000,
+    }),
+
+    prisma.offer.findMany({
+      where: {
+        ...(Object.keys(vehicleWhere).length > 0 ? { vehicle: vehicleWhere } : {}),
+      },
+      include: {
+        part: {
+          include: {
+            partType: true,
+          },
+        },
+      },
+      take: 5000,
     }),
   ]);
+
+  const modelOptions = [...new Set(vehiclesForModels.map((v) => v.model.name))].sort(
+    (a, b) => a.localeCompare(b)
+  );
+
+  const engineOptions = [...new Set(vehiclesForEngines.map((v) => v.engine.name))].sort(
+    (a, b) => a.localeCompare(b)
+  );
+
+  const yearOptions = [...new Set(vehiclesForYears.map((v) => String(v.year)))].sort(
+    (a, b) => Number(b) - Number(a)
+  );
+
+  const partTypeOptions = [
+    ...new Set(offersForPartTypes.map((o) => o.part.partType.name)),
+  ].sort((a, b) => a.localeCompare(b));
 
   const rows = offers.map((offer) => {
     const selectedPriceCents =
@@ -135,7 +263,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     rows,
     makeOptions: makeRows.map((r) => r.name),
-    modelOptions: modelRows.map((r) => r.name),
-    partTypeOptions: partTypeRows.map((r) => r.name),
+    modelOptions,
+    engineOptions,
+    yearOptions,
+    partTypeOptions,
   });
 }

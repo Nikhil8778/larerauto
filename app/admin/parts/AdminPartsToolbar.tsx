@@ -3,9 +3,13 @@
 type Props = {
   makeOptions: string[];
   modelOptions: string[];
+  engineOptions: string[];
+  yearOptions: string[];
   partTypeOptions: string[];
   selectedMake: string;
   selectedModel: string;
+  selectedEngine: string;
+  selectedYear: string;
   selectedPartType: string;
   selectedStatus: string;
   selectedInventory: string;
@@ -16,26 +20,82 @@ type Props = {
 export default function AdminPartsToolbar({
   makeOptions,
   modelOptions,
+  engineOptions,
+  yearOptions,
   partTypeOptions,
   selectedMake,
   selectedModel,
+  selectedEngine,
+  selectedYear,
   selectedPartType,
   selectedStatus,
   selectedInventory,
   selectedBatch,
   selectedSyncScope,
 }: Props) {
-  function updateQuery(key: string, value: string) {
+  function updateUrl(mutator: (url: URL) => void) {
     const url = new URL(window.location.href);
-
-    if (!value) {
-      url.searchParams.delete(key);
-    } else {
-      url.searchParams.set(key, value);
-    }
-
+    mutator(url);
     window.location.href = url.toString();
   }
+
+  function handleMakeChange(value: string) {
+    updateUrl((url) => {
+      if (!value) url.searchParams.delete("make");
+      else url.searchParams.set("make", value);
+
+      url.searchParams.delete("model");
+      url.searchParams.delete("engine");
+      url.searchParams.delete("year");
+      url.searchParams.delete("partType");
+    });
+  }
+
+  function handleModelChange(value: string) {
+    updateUrl((url) => {
+      if (!value) url.searchParams.delete("model");
+      else url.searchParams.set("model", value);
+
+      url.searchParams.delete("engine");
+      url.searchParams.delete("year");
+      url.searchParams.delete("partType");
+    });
+  }
+
+  function handleEngineChange(value: string) {
+    updateUrl((url) => {
+      if (!value) url.searchParams.delete("engine");
+      else url.searchParams.set("engine", value);
+
+      url.searchParams.delete("year");
+      url.searchParams.delete("partType");
+    });
+  }
+
+  function handleYearChange(value: string) {
+    updateUrl((url) => {
+      if (!value) url.searchParams.delete("year");
+      else url.searchParams.set("year", value);
+
+      url.searchParams.delete("partType");
+    });
+  }
+
+  function updateQuery(key: string, value: string) {
+    updateUrl((url) => {
+      if (!value) {
+        url.searchParams.delete(key);
+      } else {
+        url.searchParams.set(key, value);
+      }
+    });
+  }
+
+  const modelDisabled = !selectedMake;
+  const engineDisabled = !selectedMake || !selectedModel;
+  const yearDisabled = !selectedMake || !selectedModel || !selectedEngine;
+  const partTypeDisabled =
+    !selectedMake || !selectedModel || !selectedEngine || !selectedYear;
 
   return (
     <div className="space-y-4">
@@ -67,13 +127,13 @@ export default function AdminPartsToolbar({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-9">
         <select
           value={selectedMake}
-          onChange={(e) => updateQuery("make", e.target.value)}
+          onChange={(e) => handleMakeChange(e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
         >
-          <option value="">All Makes</option>
+          <option value="">Select Make</option>
           {makeOptions.map((item) => (
             <option key={item} value={item}>
               {item}
@@ -83,11 +143,40 @@ export default function AdminPartsToolbar({
 
         <select
           value={selectedModel}
-          onChange={(e) => updateQuery("model", e.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+          onChange={(e) => handleModelChange(e.target.value)}
+          disabled={modelDisabled}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
         >
-          <option value="">All Models</option>
+          <option value="">{modelDisabled ? "Select Make First" : "Select Model"}</option>
           {modelOptions.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedEngine}
+          onChange={(e) => handleEngineChange(e.target.value)}
+          disabled={engineDisabled}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
+        >
+          <option value="">{engineDisabled ? "Select Model First" : "Select Engine"}</option>
+          {engineOptions.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedYear}
+          onChange={(e) => handleYearChange(e.target.value)}
+          disabled={yearDisabled}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
+        >
+          <option value="">{yearDisabled ? "Select Engine First" : "Select Year"}</option>
+          {yearOptions.map((item) => (
             <option key={item} value={item}>
               {item}
             </option>
@@ -97,9 +186,10 @@ export default function AdminPartsToolbar({
         <select
           value={selectedPartType}
           onChange={(e) => updateQuery("partType", e.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
+          disabled={partTypeDisabled}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
         >
-          <option value="">All Parts</option>
+          <option value="">{partTypeDisabled ? "Select Year First" : "Select Part Type"}</option>
           {partTypeOptions.map((item) => (
             <option key={item} value={item}>
               {item}
@@ -133,6 +223,9 @@ export default function AdminPartsToolbar({
           onChange={(e) => updateQuery("batch", e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900"
         >
+          <option value="1">Batch 1</option>
+          <option value="3">Batch 3</option>
+          <option value="5">Batch 5</option>
           <option value="10">Batch 10</option>
           <option value="25">Batch 25</option>
           <option value="50">Batch 50</option>
@@ -151,7 +244,7 @@ export default function AdminPartsToolbar({
 
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
         Use small batches first to control ZenRows credits. Best practice is to sync
-        only pending/failed offers for one make/model/part type at a time.
+        only pending/failed offers for one exact make/model/engine/year/part type at a time.
       </div>
     </div>
   );
