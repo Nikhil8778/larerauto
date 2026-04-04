@@ -5,6 +5,10 @@ import {
   explainCandidateFailure,
   scoreCandidate,
 } from "./candidate-score";
+import type {
+  CandidateSearchInput,
+  VendorSearchCandidate,
+} from "./candidate-types";
 
 function normalizeRef(value: string) {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -30,6 +34,16 @@ function extractKnownReferenceNumbers(text: string) {
   return [...new Set(cleaned)];
 }
 
+function extractAsinFromUrl(url: string) {
+  const dpMatch = url.match(/\/dp\/([A-Z0-9]{10})/i);
+  if (dpMatch?.[1]) return dpMatch[1].toUpperCase();
+
+  const gpMatch = url.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+  if (gpMatch?.[1]) return gpMatch[1].toUpperCase();
+
+  return null;
+}
+
 type FindOptions = {
   take?: number;
   make?: string;
@@ -39,6 +53,69 @@ type FindOptions = {
   partType?: string;
   onlyUnsynced?: boolean;
 };
+
+async function findReusableScrapedProducts(
+  input: CandidateSearchInput,
+  excludeOfferId: string
+): Promise<VendorSearchCandidate[]> {
+  const rows = await prisma.scrapedProduct.findMany({
+    where: {
+      vendor: "amazon",
+      priceCents: {
+        not: null,
+      },
+      offerAssignments: {
+        some: {
+          selected: true,
+          offerId: {
+            not: excludeOfferId,
+          },
+          offer: {
+            part: {
+              partType: {
+                name: {
+                  equals: input.partType,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ lastScrapedAt: "desc" }, { updatedAt: "desc" }],
+    take: 100,
+  });
+
+  return rows
+    .map((row) => ({
+      vendor: "amazon" as const,
+      title: row.title,
+      productUrl: row.productUrl,
+      priceCents: row.priceCents,
+      badge: null,
+      inStock: row.inStock,
+      rawText: row.rawText ?? null,
+      referenceNumbers: row.referenceNumbers ?? [],
+      scrapedProductId: row.id,
+      asin: row.asin ?? null,
+      canonicalKey: row.canonicalKey ?? null,
+      sellerStore: row.sellerStore ?? null,
+      preferredSupplier: row.preferredSupplier,
+      inventoryCount: row.inventoryCount ?? null,
+      inventoryText: row.inventoryText ?? null,
+      fitmentConfirmed: row.fitmentConfirmed ?? null,
+      cannotConfirmFit: row.cannotConfirmFit ?? null,
+    }))
+    .filter((candidate) => candidatePassesHardFitment(input, candidate))
+    .map((candidate) => ({
+      ...candidate,
+      _score: scoreCandidate(input, candidate),
+    }))
+    .sort((a, b) => b._score - a._score)
+    .slice(0, 5)
+    .map(({ _score, ...candidate }) => candidate);
+}
 
 export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
   const {
@@ -146,7 +223,7 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
       `${offer.sourceId ?? ""} ${offer.sourceSku ?? ""} ${offer.part.title ?? ""}`
     );
 
-    const input = {
+    const input: CandidateSearchInput = {
       make: offer.vehicle.make.name,
       model: offer.vehicle.model.name,
       year: offer.vehicle.year,
@@ -155,7 +232,18 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
       referenceNumbers: knownReferenceNumbers,
     };
 
-    const amazonCandidates = await searchAmazonCandidates(input);
+    let amazonCandidates = await findReusableScrapedProducts(input, offer.id);
+
+    if (amazonCandidates.length > 0) {
+      console.log("Reused cached scraped product(s) for:", input);
+    } else {
+      console.log("No reusable cache match. Scraping for:", input);
+
+      amazonCandidates = (await searchAmazonCandidates(input)).map((candidate) => ({
+        ...candidate,
+        asin: extractAsinFromUrl(candidate.productUrl),
+      }));
+    }
 
     const strictCandidates = amazonCandidates
       .filter((c) => candidatePassesHardFitment(input, c))
@@ -184,12 +272,15 @@ export async function findAndStoreVendorCandidates(options: FindOptions = {}) {
           score: candidate.score,
           rawText: [
             candidate.rawText ?? null,
-            candidate.reasons.length ? `reasons=${candidate.reasons.join("|")}` : null,
+            candidate.reasons.length
+              ? `reasons=${candidate.reasons.join("|")}`
+              : null,
           ]
             .filter(Boolean)
             .join(" || ")
             .slice(0, 3000),
           selected: false,
+          scrapedProductId: candidate.scrapedProductId ?? null,
         },
       });
     }

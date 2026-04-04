@@ -16,4 +16,13 @@ export type VendorSearchCandidate = {
   inStock?: boolean | null;
   rawText?: string | null;
   referenceNumbers?: string[];
+  scrapedProductId?: string | null;
+  asin?: string | null;
+  canonicalKey?: string | null;
+  sellerStore?: string | null;
+  preferredSupplier?: boolean | null;
+  inventoryCount?: number | null;
+  inventoryText?: string | null;
+  fitmentConfirmed?: boolean | null;
+  cannotConfirmFit?: boolean | null;
 };

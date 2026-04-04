@@ -78,6 +78,129 @@ function bestCandidateFromShortlist(candidates: CandidateRow[]) {
   })[0];
 }
 
+async function propagateSelectedCandidateToCompatibleOffers(
+  sourceOfferId: string,
+  selected: CandidateRow,
+  sourceInput: OfferInput
+) {
+  const selectedPriceCents = selected.priceCents;
+  if (selectedPriceCents === null || selectedPriceCents <= 0) return 0;
+
+  const relatedOffers = await prisma.offer.findMany({
+    where: {
+      id: {
+        not: sourceOfferId,
+      },
+      part: {
+        partType: {
+          name: {
+            equals: sourceInput.partType,
+            mode: "insensitive",
+          },
+        },
+      },
+      OR: [
+        { syncStatus: null },
+        { syncStatus: "" },
+        { syncStatus: "pending" },
+        { syncStatus: "failed" },
+        { sourceId: "manual" },
+      ],
+    },
+    include: {
+      vehicle: {
+        include: {
+          make: true,
+          model: true,
+          engine: true,
+        },
+      },
+      part: {
+        include: {
+          partType: true,
+        },
+      },
+    },
+    take: 300,
+  });
+
+  let updatedCount = 0;
+
+  for (const offer of relatedOffers) {
+    const targetInput: OfferInput = {
+      year: offer.vehicle.year,
+      make: offer.vehicle.make.name,
+      model: offer.vehicle.model.name,
+      engine: offer.vehicle.engine.name,
+      partType: offer.part.partType.name,
+    };
+
+    if (!candidatePassesHardFitment(targetInput, selected)) {
+      continue;
+    }
+
+    const pricing = calculateSellPrice(selectedPriceCents);
+
+    await prisma.vendorCandidate.deleteMany({
+      where: {
+        offerId: offer.id,
+      },
+    });
+
+    await prisma.vendorCandidate.create({
+      data: {
+        offerId: offer.id,
+        vendor: selected.vendor,
+        title: selected.title,
+        productUrl: selected.productUrl,
+        priceCents: selectedPriceCents,
+        badge: selected.badge ?? null,
+        inStock: selected.inStock ?? null,
+        score: selected.score,
+        rawText: [
+          selected.rawText ?? null,
+          `propagatedFromOffer=${sourceOfferId}`,
+        ]
+          .filter(Boolean)
+          .join(" || ")
+          .slice(0, 3000),
+        selected: true,
+      },
+    });
+
+    await prisma.offer.update({
+      where: { id: offer.id },
+      data: {
+        amazonPriceCents: selectedPriceCents,
+        aPremiumPriceCents: null,
+        amazonUrl: selected.productUrl,
+        aPremiumUrl: null,
+        referencePriceCents: selectedPriceCents,
+        sellPriceCents: pricing?.sellPriceCents ?? 0,
+        sourceId: "amazon",
+        syncStatus: "success",
+        syncError: null,
+        lastPriceSyncAt: new Date(),
+      },
+    });
+
+    updatedCount += 1;
+
+    console.log("Propagated selected candidate to compatible offer:", {
+      sourceOfferId,
+      targetOfferId: offer.id,
+      year: targetInput.year,
+      make: targetInput.make,
+      model: targetInput.model,
+      engine: targetInput.engine,
+      partType: targetInput.partType,
+      priceCents: selectedPriceCents,
+    });
+  }
+
+  return updatedCount;
+}
+
 export async function syncOfferPrices(options: SyncOptions = {}) {
   const {
     take,
@@ -236,6 +359,16 @@ export async function syncOfferPrices(options: SyncOptions = {}) {
       },
     });
 
+    let propagatedCount = 0;
+
+    if (selected) {
+      propagatedCount = await propagateSelectedCandidateToCompatibleOffers(
+        offer.id,
+        selected,
+        input
+      );
+    }
+
     console.log("Offer sync result:", {
       offerId: offer.id,
       year: input.year,
@@ -246,6 +379,7 @@ export async function syncOfferPrices(options: SyncOptions = {}) {
       candidatesCount: candidates.length,
       amazonCandidatesCount: amazonCandidates.length,
       preferredCandidatesCount: amazonCandidates.filter(isPreferredSupplierCandidate).length,
+      propagatedCount,
       selected: selected
         ? {
             vendor: selected.vendor,

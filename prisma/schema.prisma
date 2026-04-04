@@ -160,9 +160,10 @@ model Offer {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  candidates VendorCandidate[]
-  vehicle    Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  part       Part              @relation(fields: [partId], references: [id], onDelete: Cascade)
+  candidates        VendorCandidate[]
+  scrapedProducts   OfferScrapedProduct[]
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  part              Part              @relation(fields: [partId], references: [id], onDelete: Cascade)
 
   @@index([vehicleId])
   @@index([partId])
@@ -184,7 +185,8 @@ model VendorCandidate {
   rawText    String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
+  scrapedProductId String?
+  scrapedProduct   ScrapedProduct? @relation(fields: [scrapedProductId], references: [id], onDelete: SetNull)
   offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
   @@index([offerId])
@@ -955,4 +957,81 @@ model QuoteLead {
   @@index([preferredReplyChannel])
   @@index([customerType])
   @@index([inventoryStatus])
+}
+
+model ScrapedProduct {
+  id                    String   @id @default(cuid())
+  vendor                String   // amazon
+  asin                  String?
+  productUrl            String   @unique
+  canonicalKey          String?  @unique
+  title                 String
+  rawText               String?
+  sellerStore           String?
+  preferredSupplier     Boolean  @default(false)
+
+  priceCents            Int?
+  currency              String   @default("CAD")
+  inStock               Boolean?
+  inventoryCount        Int?
+  inventoryText         String?
+
+  fitmentConfirmed      Boolean?
+  cannotConfirmFit      Boolean?
+
+  referenceNumbers      String[] @default([])
+  lastScrapedAt         DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  fitments              ScrapedProductFitment[]
+  candidates            VendorCandidate[]
+  offerAssignments      OfferScrapedProduct[]
+
+  @@index([vendor])
+  @@index([asin])
+  @@index([preferredSupplier])
+  @@index([priceCents])
+  @@index([lastScrapedAt])
+}
+
+model ScrapedProductFitment {
+  id               String   @id @default(cuid())
+  scrapedProductId String
+
+  make             String
+  model            String
+  engine           String?
+  yearFrom         Int?
+  yearTo           Int?
+  rawFitmentText   String?
+
+  scrapedProduct   ScrapedProduct @relation(fields: [scrapedProductId], references: [id], onDelete: Cascade)
+
+  @@index([scrapedProductId])
+  @@index([make])
+  @@index([model])
+  @@index([engine])
+  @@index([yearFrom, yearTo])
+}
+
+model OfferScrapedProduct {
+  id               String   @id @default(cuid())
+  offerId          String
+  scrapedProductId String
+
+  matchSource      String?  // exact_reference | parsed_fitment | manual_selected
+  score            Int      @default(0)
+  selected         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  offer            Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  scrapedProduct   ScrapedProduct @relation(fields: [scrapedProductId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, scrapedProductId])
+  @@index([offerId])
+  @@index([scrapedProductId])
+  @@index([selected])
+  @@index([score])
 }
